@@ -14,10 +14,9 @@ Implement data reader
 
 Implement result writer
 
-Implement discriminator
--Implement sentence-level language model
--Implement document-level language model
--Implement attention
+Implement discriminator (sentence and document neural language models)
+
+Implement attention
 
 Implement generator
 
