@@ -38,3 +38,37 @@ Tuesday 5: Have model trained and results ready
 Thursday 7: Finish report
 
 Friday 8: Hand in project
+
+
+
+
+## Structure
+
+* `datasets/` - all data sources required for training/validation/testing.
+* `outputs/` - any output for a model will be placed here, including logs, summaries, checkpoints, and Kaggle submission `.csv` files.
+* `src/` - all source code.
+    * `core/` - base classes
+    * `datasources/` - routines for reading and preprocessing entries for training and testing
+    * `models/` - neural network definitions
+    * `util/` - utility methods
+    * `main.py` - training script
+
+## Creating your own model
+### Model definition
+To create your own neural network, do the following:
+1. Make a copy of `src/models/example.py`. For the purpose of this documentation, let's call the new file `newmodel.py` and the class within `NewModel`.
+2. Now edit `src/models/__init__.py` and insert the new model by making it look like:
+```
+from .example import ExampleNet
+from .newmodel import NewModel
+__all__ = ('ExampleNet', 'NewModel')
+```
+3. Lastly, make a copy or edit `src/main.py` such that it imports and uses class `NewModel` instead of `ExampleNet`.
+
+### Training the model
+If your training script is called `main.py`, simply `cd` into the `src/` directory and run
+```
+python3 main.py
+```
+
+_[The skeleton of this project has been done by Seonwook Park and has been adapted by Nil Adell for this project]_
