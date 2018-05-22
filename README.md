@@ -6,23 +6,26 @@ Source paper: [Conditional Generative Adversarial Networks for Commonsense Machi
 ## Tasks
 [Put your name next to tasks you are currently working on and remove tasks once you have pushed to repo]
 
-Implement framework for training (including logging) and predicting
+- **Nil**:  Implement framework for training (including logging) and predicting
 
-Implement embedding (word2vec)
+- **Nil**:  Implement data reader
+> **Disclaimer on two above:** As we are allowed to use _any Tensorflow code_ (lit.) I'm gonna port the Machine Perception skeleton (citing that I took it from there obviously. If anyone has a issue with that reach me. 
 
-Implement data reader
+> **ETC - Saturday** (Yet have to do a lot of MoC so I may send an SOS before then if I feel too pressured.) If y'all feel like this should be finished earlier and/or wants to do it, tell me, I'll post now the MP skeleton for you to finish cleaning and adapting it. 
 
-Implement result writer
+- Implement embedding (word2vec)
 
-Implement discriminator (sentence and document neural language models)
+- Implement result writer
 
-Implement attention
+- Implement discriminator (sentence and document neural language models)
 
-Implement generator
+- Implement attention
 
-Train model (DIFFICULT!)
+- Implement generator
 
-Write report
+- Train model (DIFFICULT!)
+
+- Write report
 
 ## Deadlines
 
