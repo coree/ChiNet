@@ -93,4 +93,4 @@ class GAN(BaseModel):
 
         logger.info('Model {} building exiting.'.format(__name__))
 
-        return {"score": score}, {"sigmoid_cross_entropy": sigmoid_cross_entropy}, {} #TODO last dict not used?
+        return {"score": score}, {"sigmoid_cross_entropy": sigmoid_cross_entropy_loss}, {} #TODO last dict not used?
