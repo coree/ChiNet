@@ -11,22 +11,66 @@ from util.gaussian import gaussian_maps
 import logging
 logger = logging.getLogger(__name__)
 
-class StackedHourglass(BaseModel):
-    """Hourglass model [Newell et al. 2016] """
-    #######   XANDER I AM ASSUMING THAT FOR YOUR TASK YOU HAVE A SIMILAR ARCHITECTURE, HOWEVER IF IT'S NOT LIKE THAT
-    #       JUST SAY THAT YOU "ONLY NEED" TO PUT THE MODEL HERE, IN A SIMILAR FASHION TO MINE, AND THEN SELECT IN THE
-    #       MAIN FILE (src/main.py) THE ELEMENTS YOU WANT TO TRAIN AND WHICH OF THE LOSSES (DEFINED HERE AT THE BOTTOM)
-    #       YOU WANT TO USE. AFTER THAT THE BASEMODEL WILL TAKE THE REST OF EVERYTHING.... WELL, IDK WHY I'M TELLING YOU 
-    #       THIS AS YOU ALREADY KNOW....  ¯\_(ツ)_/¯
+#TODO modify into GAN, for now just discriminator
+class GAN(BaseModel):
     def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
         """Build model."""
         logger.info('Start building model {}'.format(__name__))
+        
+        #logging.debug(targets)
+
+        #parameters TODO config from higher level
+        sentence_hidden_size = 64
+        document_hidden_size = 128
+        document_n_hidden = 4
+        embedding_size = 100
+        vocab_size = 20000
+        batch_size = 32
+        initializer = tf.contrib.layers.xavier_initializer
+
+        #get inputs
+        inputs = input_tensors['input']    # Inputs
+        target = input_tensors['target']  # Targets
         data_source = next(iter(data_sources.values()))
         input_tensors = data_source.output_tensors  # Data source automatically handles the datafiles
-        x = input_tensors['img']    # Inputs
-        y = input_tensors['kp_2D']  # Targets
-        logging.debug(y)
 
+        #embedding
+        with tf.variable_scope('embed'):
+            embedding_weights = tf.get_variable("weights", shape=[vocab_size, embedding_size], initializer=tf.constant_initializer([vocab_size, embedding_size]), trainable=False)
+            embedding_placeholder = tf.placeholder(tf.float32, [vocab_size, embedding_size])
+            embedding_init = embedding_weights.assign(embedding_placeholder)
+            
+            #TODO fix sentence length? how to deal with variable size sentence length?
+            embedded_inputs = []
+            for input_ in inputs:
+                embedded_inputs += [tf.nn.embedding_lookup(embedding_weights, input_)]
+            embedded_target = tf.nn.embedding_lookup(embedding_weights, target)
+
+        #sentence RNN
+        with tf.variable_scope('sentence'):
+            #stack inputs and targets
+            embedded_inputs_target = tf.concat([embedded_inputs, embedded_target], axis=1)
+
+            sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=sentence_hidden_size, activation=tf.nn.relu) #TODO use tanh (default) instead of relu?
+            sentence_output, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, embedded_inputs_target)
+
+            rnn_state_inputs = sentence_state[:document_n_hidden]
+            rnn_state_target = sentence_state[document_n_hidden]
+
+        #TODO attention
+        
+        #document RNN
+        with tf.variable_scope('document'):
+            document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=document_hidden_size, activation=tf.nn.relu) #TODO activation: same as sentence
+            document_output, document_state = tf.nn.dynamic_rnn(document_rnn_cell, rnn_state_inputs)
+            #document_to_sentence_weights = tf.get_variable("document_to_sentence_weigths", shape=[document_hidden_size, sentence_hidden_size], initializer=initializer, trainable=True)
+            document_sentence_space = tf.layers_dense(document_state, document_hidden_size) #TODO activation? no?
+            score = tf.reduce_sum(tf.multiply(document_sentence_space, rnn_state_target))
+            score_probability = tf.sigmoid(score)
+    
+        #TODO loss
+
+        #BELOW SHOULD BE DELETED, KEPT FOR REFERENCE
         filters = 256
         num_joints = 21  # TODO: Why can't I use "tf.shape(y[2])"?
         hourglass_stacks = 8
