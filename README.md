@@ -13,17 +13,17 @@ Source paper: [Conditional Generative Adversarial Networks for Commonsense Machi
 
 > **ETC - Saturday** (Yet have to do a lot of MoC so I may send an SOS before then if I feel too pressured.) If y'all feel like this should be finished earlier and/or wants to do it, tell me, I'll post now the MP skeleton for you to finish cleaning and adapting it. 
 
-- **Xander**; Implement embedding (word2vec)
+- Fix word2vec embedding loading
 
-- Implement result writer
-
-- **Xander**; Implement discriminator (sentence and document neural language models)
+- Test and debug discriminator
 
 - Implement attention
 
 - Implement generator
 
 - Train model (DIFFICULT!)
+
+- Implement result writer
 
 - Write report
 
