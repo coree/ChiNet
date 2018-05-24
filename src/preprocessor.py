@@ -55,7 +55,7 @@ def preprocess_data(read_file='../datasets/train_stories.csv', vocab_size=20000,
         vocab = dict()
         for row in reader:
             story =[]
-            for element in row[1:]:  # clip IDs column
+            for element in row[2:]:  # clip IDs and story title column
                 tokens = nltk.word_tokenize(element)
                 sentence = []
                 for token in tokens:
