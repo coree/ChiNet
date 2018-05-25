@@ -3,32 +3,37 @@ import numpy as np
 import nltk
 import os
 import pickle
-# import pandas as pd
 
 #write vocabulary to file
 def write_vocab(id_word, word_id):
-    if not os.path.exists("./vocab"):
-        os.makedirs("./vocab")
-    with open("./vocab/WordID.pkl", "wb") as f:
+    if not os.path.exists("../datasets/vocab"):
+        os.makedirs("../datasets/vocab")
+    with open("../datasets/vocab/WordID.pkl", "wb") as f:
         pickle.dump(word_id, f)
-    with open("./vocab/IDWord.pkl", "wb") as f:
+    with open("../datasets/vocab/IDWord.pkl", "wb") as f:
         pickle.dump(id_word, f)
 
 #write data to file
 def write_processed_data(processed_data):
-    if not os.path.exists("./dataset"):
-        os.makedirs("./dataset")
-    with open("./dataset/processed_data.pkl", "wb") as f:
+    if not os.path.exists("../datasets"):
+        os.makedirs("../datasets")
+    with open("../datasets/processed_data.pkl", "wb") as f:
         pickle.dump(processed_data, f)
 
 
 #load vocabulary and inverse vocabulary from file
 def load_vocab():
-    with open('./vocab/IDWord.pkl', 'rb') as IDWord_file:
+    with open('../datasets/vocab/IDWord.pkl', 'rb') as IDWord_file:
         id_word = pickle.load(IDWord_file)
-    with open('./vocab/WordID.pkl', 'rb') as WordID_file:
+    with open('../datasets/vocab/WordID.pkl', 'rb') as WordID_file:
         word_id = pickle.load(WordID_file)
+    return id_word, word_id
 
+
+def load_preprocessed_data():
+    with open('../datasets/processed_data.pkl', 'rb') as f:
+        data = pickle.load(f)
+    return data
 
 
 def make_vocab(vocab, vocab_size):
@@ -45,7 +50,6 @@ def make_vocab(vocab, vocab_size):
     # write to pickle
     write_vocab(id_word, word_id)
     return id_word, known_words, word_id
-
 
 
 def preprocess_data(read_file='../datasets/train_stories.csv', vocab_size=20000, write=True):
@@ -88,9 +92,7 @@ def preprocess_data(read_file='../datasets/train_stories.csv', vocab_size=20000,
                     else:
                         sentence[idx] = word_id[word]
 
-        np_data = np.array(data)
-
         if write:
-            write_processed_data(np_data)
+            write_processed_data(data)
 
-        return np_data, word_id, id_word
+        return data, word_id, id_word
