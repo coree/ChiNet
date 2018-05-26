@@ -1,6 +1,7 @@
 import csv
 import numpy as np
 import nltk
+from nltk.corpus import names
 import os
 import pickle
 
@@ -52,6 +53,28 @@ def make_vocab(vocab, vocab_size):
     return id_word, known_words, word_id
 
 
+# TODO: Dehumanyfy function is extremely time inefficient (could be much more optimized)
+# TODO: Check if sex may give any source of extra information (which I doubt, tho)
+def dehumanify(sentence):  
+    """
+    Just as it says, people are not names, they are just another numbered blorg! 
+            (culture yourselves [ https://preview.tinyurl.com/greatBlorg ] [ /watch?v=-FwnxRiozyU ])
+
+    Args:
+        sentence (list): Human named sentence.
+    Retunrs:
+        sentence (list) with glorious meaningful names.
+
+    (In a more serious context, we replace proper names with a stereotypical string in order to reduce 
+     the vocabulary size, delete unnecesary information and (probably) improve the model. ) 
+    """
+    worthless_subject = 1  # We have to be consistent, plz
+    proper_names = names.words()
+    for idx, token in enumerate(sentence):
+        if token in proper_names:
+            sentence[idx] = 'friendly_blorg_{}'.format(worthless_subject)
+            worthless_subject += 1
+
 def preprocess_file(file_path='../datasets/train_stories.csv', 
                          clean_file='../datasets/train_stories.clean'):
     """ Preprocess the csv into a pickled python list"""
@@ -79,11 +102,12 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
         raw = pickle.load(f)
         data =[]
         vocab = dict()
-        for block in raw:
+        for block in raw[:100]:
             story =[]
             for line in block: 
                 tokens = nltk.word_tokenize(line)
                 sentence = []
+                dehumanify(tokens)  
                 for token in tokens:
 
                     token = token.lower()
