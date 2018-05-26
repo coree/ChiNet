@@ -4,6 +4,9 @@ import nltk
 from nltk.corpus import names
 import os
 import pickle
+import time
+import logging
+logger = logging.getLogger(__name__)
 
 #write vocabulary to file
 def write_vocab(id_word, word_id):
@@ -100,42 +103,49 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     """
     with open(read_file, 'rb') as f:
         raw = pickle.load(f)
-        data =[]
-        vocab = dict()
-        for block in raw[:100]:
-            story =[]
-            for line in block: 
-                tokens = nltk.word_tokenize(line)
-                sentence = []
-                dehumanify(tokens)  
-                for token in tokens:
+    data =[]
+    vocab = dict()
+    start_time = time.time()
+    for progress, block in enumerate(raw):
+        story =[]
+        for line in block: 
+            tokens = nltk.word_tokenize(line)
+            sentence = []
+            dehumanify(tokens)  
+            for token in tokens:
 
-                    token = token.lower()
-                    if token in vocab.keys():
-                        vocab[token] += 1
-                    else:
-                        vocab[token] = 1
+                token = token.lower()
+                if token in vocab.keys():
+                    vocab[token] += 1
+                else:
+                    vocab[token] = 1
 
-                    sentence.append(token)
-                story.append(sentence)
-            data.append(story)
+                sentence.append(token)
+            story.append(sentence)
+        if not (progress+1) % 1000:
+            t = (len(raw)-progress)*(time.time()-start_time)/progress
+            logger.info(' Estimated completion in {0:.0f}:{1:.0f} min  - Actual completion {2}/{3} stories)'.format(
+                                                        t//60,  t%60,  # min, sec 
+                                                        progress + 1, 
+                                                        len(raw)))
+        data.append(story)
 
-        # generate vocabulary and write it to a pickle
-        id_word, known_words, word_id = make_vocab(vocab, vocab_size)
+    # generate vocabulary and write it to a pickle
+    id_word, known_words, word_id = make_vocab(vocab, vocab_size)
 
-        #print('known_words', known_words)
-        #print('id_word', id_word)
+    #print('known_words', known_words)
+    #print('id_word', id_word)
 
-        # exchanges words with ids and replaces words that are not in vocab with the id of unk
-        for story in data:
-            for sentence in story:
-                for idx, word in enumerate(sentence):
-                    if word not in known_words:
-                        sentence[idx] = word_id['<unk>']
-                    else:
-                        sentence[idx] = word_id[word]
+    # exchanges words with ids and replaces words that are not in vocab with the id of unk
+    for story in data:
+        for sentence in story:
+            for idx, word in enumerate(sentence):
+                if word not in known_words:
+                    sentence[idx] = word_id['<unk>']
+                else:
+                    sentence[idx] = word_id[word]
 
-        if write:
-            write_processed_data(data)
+    if write:
+        write_processed_data(data)
 
-        return data, word_id, id_word
+    return data, word_id, id_word
