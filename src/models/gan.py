@@ -2,7 +2,9 @@
 
 import logging
 import tensorflow as tf
-from core import BaseDataSource, BaseModel
+from core import BaseModel
+from datasources import TextSource
+
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 #TODO modify into GAN, for now just discriminator
 class GAN(BaseModel):
-    def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
+    def build_model(self, data_sources: Dict[str, TextSource], mode: str):
         
         logger.info('Start building model {}'.format(__name__))
 
@@ -33,25 +35,27 @@ class GAN(BaseModel):
         rnn_activation = tf.nn.relu #TODO use tanh (default)?
 
         #inputs
-        data_source = next(iter(data_sources.values()))
-        input_tensors = data_source.output_tensors  # Data source automatically handles the datafiles
-        
-        input_sentences = input_tensors['input_sentence']   
-        target_sentence = input_tensors['target_sentence']
-        target_label = input_tensors['target_label'] #0=false ending 1=true ending
-        word2vec_weights = input_tensors['embedding_weights'] #loaded word2vec embedding weights
+        input_sentences = [tf.placeholder(shape=[None, None], dtype=tf.int64) for i in range(4)]
+        target_sentence = tf.placeholder(shape=[None, None], dtype=tf.int64, name='target_sentence')
 
-        #embedding
-        with tf.variable_scope('embed'):
-            #load embedding weights
-            embedding_weights = tf.get_variable("weights", shape=[vocab_size, embedding_size], initializer=tf.constant_initializer([vocab_size, embedding_size]), trainable=False)
-            embedding_init = embedding_weights.assign(word2vec_weights) #embedding_init must be called to load embedding weights
+        target_label = tf.placeholder(shape=[None], dtype=tf.float32, name='target_label') # input_tensors['target_label'] #0=false ending 1=true ending
+        word2vec_weights = tf.placeholder(shape=[None, None], dtype=tf.float32)  # input_tensors['embedding_weights'] #loaded word2vec embedding weights
+
+
+        ### SUBSTITUTED FOR NOW WITH ONE HOT ENCODING (FOR TESTING POURPOSES)
+        # #embedding
+        # with tf.variable_scope('embed'):
+        #     #load embedding weights
+        #     embedding_weights = tf.get_variable("weights", shape=[vocab_size, embedding_size], initializer=tf.constant_initializer([vocab_size, embedding_size]), trainable=False)
+        #     embedding_init = embedding_weights.assign(word2vec_weights) #embedding_init must be called to load embedding weights
             
-            embedded_inputs = []
-            for sentence in input_sentences:
-                embedded_inputs += [tf.nn.embedding_lookup(embedding_weights, sentence)]
-            embedded_target = tf.nn.embedding_lookup(embedding_weights, target_sentence)
-            #embedded sentence shape [batch_size, embedding_size]
+        #     embedded_inputs = []
+        #     for sentence in input_sentences:
+        #         embedded_inputs += [tf.nn.embedding_lookup(embedding_weights, sentence)]
+        #     embedded_target = tf.nn.embedding_lookup(embedding_weights, target_sentence)
+        #     #embedded sentence shape [batch_size, embedding_size]
+        embedded_inputs = [tf.one_hot(s, 20000) for s in input_sentences]
+        embedded_target = tf.one_hot(target_sentence, 20000)
 
         #sentence rnn
         with tf.variable_scope('sentence'):
@@ -64,7 +68,7 @@ class GAN(BaseModel):
             #apply rnn to each sentence
             sentence_states = []
             for embedded_sentence in embedded_inputs_target_list:
-                sentence_output, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, embedded_sentence)
+                sentence_output, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, embedded_sentence, dtype=tf.float32)
                 sentence_states += [sentence_state]
 
             #separate sentence rnn final hidden states for inputs and target
@@ -77,10 +81,10 @@ class GAN(BaseModel):
         with tf.variable_scope('document'):
             document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=document_hidden_size, activation=rnn_activation)
 
-            document_output, document_state = tf.nn.dynamic_rnn(document_rnn_cell, rnn_state_inputs)
+            document_output, document_state = tf.nn.dynamic_rnn(document_rnn_cell, rnn_state_inputs, dtype=tf.float32)
 
             #transform document final hidden state from document space to sentence space
-            document_state_sentence_space = tf.layers_dense(document_state, sentence_hidden_size) #TODO activation? no?
+            document_state_sentence_space = tf.layers.dense(document_state, sentence_hidden_size) #TODO activation? no?
 
             #determine target sentence score
             score = tf.reduce_sum(tf.multiply(document_state_sentence_space, rnn_state_target), axis=1) #dot product
@@ -88,9 +92,18 @@ class GAN(BaseModel):
     
         with tf.variable_scope('loss'):
             #sigmoid cross entropy loss TODO simpler loss function for binary prediction?
+            score_logit = tf.Print(score_logit, [score_logit, target_label])
             sigmoid_cross_entropy_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target_label, logits=score_logit)
 
 
         logger.info('Model {} building exiting.'.format(__name__))
 
-        return {"score": score}, {"sigmoid_cross_entropy": sigmoid_cross_entropy_loss}, {} #TODO last dict not used?
+        return ({"score": score},          # Output
+                {"sigmoid_cross_entropy": sigmoid_cross_entropy_loss},   # Loss
+                {} ,        # Any metric we may wanna monitor (I guess)
+                {'input_sentences': input_sentences, 'target_sentence': target_sentence,  # Inputs we desire on the model
+                    'target_label': target_label   , 'word2vec_weights' : word2vec_weights})                                                                           
+                                    #  (The explanation for this change is that I don't 
+                                    #  really like the way in which everything is dependent
+                                    #  on the session so we feed this later using "feed_dict".
+                                    #  Also it may be useful to add other stuff we wanna montior.)

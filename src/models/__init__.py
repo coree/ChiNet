@@ -1,5 +1,5 @@
 """Model definitions (one class per file) to define NN architectures."""
 
-from .hourglass_net import StackedHourglass
+from .gan import GAN
 
-__all__ = ('StackedHourglass')
+__all__ = ('GAN')

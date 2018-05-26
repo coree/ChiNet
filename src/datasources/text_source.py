@@ -11,7 +11,6 @@ from numpy.random import permutation
 import logging
 logger = logging.getLogger(__name__)
 
-from core import BaseDataSource
 import util.preprocessor as coree
 
 class TextSource(object):
@@ -35,29 +34,35 @@ class TextSource(object):
         logger.info('Loading data from {}'.format(self._data_file))
         data = coree.load_preprocessed_data(self._data_file)
         
-        self._len = len(data)
+        self.len_data = len(data)  # Number of total data     
         self._batch_size = batch_size
         self._data = data
+        logger.debug('Loaded data : [{}, {}, ...]'.format(self._data[0],self._data[0]))
 
-        self._batched_data = self._generate_batches()
-
+        self._generate_batches()
+        self.num_batches = len(self._batched_data)  # Number of batches
+        logger.info('Text source initialize complete')
         
     def _separate_sentences(self, data):
-        inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
+        inputs = []
+        for i in range(4):
+            inputs.append(np.array([s[i] for s in data]))
+        inputs = tuple(inputs)
+        # inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
         outputs = [s[4] for s in data]                       # Last (5th) sentence as output
         return inputs, outputs
 
     def _shuffle(self):
-        return [self._data[i] for i in permutation(self._len)]
+        return [self._data[i] for i in permutation(self.len_data)]
 
     def _generate_batches(self):
+        logger.debug('Generating new data batches')
         shuffled_data = self._shuffle()
         self._batched_data = []
-        for i in range(self._len//self._batch_size):
+        for i in range(self.len_data//self._batch_size):
             self._batched_data.append(shuffled_data[self._batch_size*i:self._batch_size*(i+1)])
-        
-        if self._len%self._batch_size != 0:
-            logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self._len%self._batch_size))
+        if self.len_data%self._batch_size != 0:
+            logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self._batch_size))
 
     def get_batch(self):
         if not self._batched_data:

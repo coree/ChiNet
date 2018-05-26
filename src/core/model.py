@@ -1,5 +1,5 @@
 """Base model class for Tensorflow-based model construction."""
-from .data_source import BaseDataSource
+from datasources import TextSource
 import os
 import time
 from typing import Any, Dict, List
@@ -26,8 +26,8 @@ class BaseModel(object):
     def __init__(self,
                  tensorflow_session: tf.Session,
                  learning_schedule: List[Dict[str, Any]],
-                 train_data: Dict[str, BaseDataSource],
-                 test_data: Dict[str, BaseDataSource] = {},
+                 train_data: Dict[str, TextSource],
+                 test_data: Dict[str, TextSource] = {},
                  test_losses_or_metrics: str = None):
         """Initialize model with data sources and parameters."""
         assert len(train_data) > 0
@@ -43,8 +43,9 @@ class BaseModel(object):
 
         # Check consistency of given data sources
         train_data_sources = list(train_data.values())
+        logger.debug('Data sources: {}'.format(train_data_sources))
         test_data_sources = list(test_data.values())
-        self._batch_size = train_data_sources.pop().batch_size
+        self._batch_size = train_data_sources.pop()._batch_size
         for data_source in train_data_sources + test_data_sources:
             if data_source.batch_size != self._batch_size:
                 raise ValueError(('Data source "%s" has anomalous batch size of %d ' +
@@ -87,40 +88,25 @@ class BaseModel(object):
         self.output_tensors = {}
         self.loss_terms = {}
         self.metrics = {}
+        self.inputs = {}
 
         def _build_datasource_summaries(data_sources, mode):
             """Register summary operations for input data from given data sources."""
-            with tf.variable_scope('%s_data' % mode):
-                for data_source_name, data_source in data_sources.items():
-                    tensors = data_source.output_tensors
-                    for key, tensor in tensors.items():
-                        summary_name = '%s/%s' % (data_source_name, key)
-                        shape = tensor.shape.as_list()
-                        num_dims = len(shape)
-                        if num_dims == 4:  # Image data
-                            if shape[1] == 1 or shape[1] == 3:
-                                self.summary.image(summary_name, tensor,
-                                                   data_format='channels_first')
-                            else:
-                                self.summary.image(summary_name, tensor,
-                                                   data_format='channels_last')
-                        elif num_dims == 2:
-                            self.summary.histogram(summary_name, tensor)
-                        else:
-                            logger.debug('I do not know how to create a summary for %s (%s)' %
-                                         (summary_name, tensor.shape.as_list()))
+            # Used only for images
 
         def _build_train_or_test(mode):
             data_sources = self._train_data if mode == 'train' else self._test_data
 
             # Build model
-            output_tensors, loss_terms, metrics = self.build_model(data_sources, mode=mode)
+            output_tensors, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode)
 
             # Record important tensors
             self.output_tensors[mode] = output_tensors
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
-
+            self.inputs[mode] = inputs
+            logger.debug(' [*] Model interfacers: \n - output : {}\ - loss_terms : {}\n - metrics : {}\n - inputs : {}'.format(
+                                                self.output_tensors, self.loss_terms, self.metrics, self.inputs ))
             # Create summaries for scalars
             if mode == 'train':
                 for name, loss_term in loss_terms.items():
@@ -144,7 +130,7 @@ class BaseModel(object):
             self._tester._post_model_build()  # Create copy ops to be run before every test run
         self.summary._post_model_build()  # Merge registered summary operations
 
-    def build_model(self, data_sources: Dict[str, BaseDataSource], mode: str):
+    def build_model(self, data_sources: Dict[str, TextSource], mode: str):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
@@ -157,13 +143,7 @@ class BaseModel(object):
         self.checkpoint.build_savers()  # Create savers
         if training:
             self._build_optimizers()
-
-            # Start pre-processing routines
-            for _, datasource in self._train_data.items():
-                datasource.create_and_start_threads()
-            if len(self._test_data) > 0:
-                for _, datasource in self._test_data.items():
-                    datasource.create_and_start_threads()
+            # TODO Maybe put the batcher shuffle here
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
@@ -173,18 +153,25 @@ class BaseModel(object):
         """Based on learning schedule, create optimizer instances."""
         self._optimize_ops = []
         all_trainable_variables = tf.trainable_variables()
+        logger.debug('All trainable variables : {}'.format(all_trainable_variables))
         for spec in self._learning_schedule:
             optimize_ops = []
             loss_terms = spec['loss_terms_to_optimize']
             assert isinstance(loss_terms, dict)
             for loss_term_key, prefixes in loss_terms.items():
                 assert loss_term_key in self.loss_terms['train'].keys()
-                variables_to_train = []
-                for prefix in prefixes:
-                    variables_to_train += [
-                        v for v in all_trainable_variables
-                        if v.name.startswith(prefix)
-                    ]
+                logger.debug('Prefixes : {}'.format(prefixes))
+                if prefixes == 'ALL':
+                    logger.info('Training all trainable variables')
+                    variables_to_train = [v for v in all_trainable_variables]
+                else:
+                    variables_to_train = []
+                    for prefix in prefixes:
+                        variables_to_train += [
+                            v for v in all_trainable_variables
+                            if v.name.startswith(prefix)
+                        ]
+                logger.debug(' Variables to train : {}'.format(variables_to_train))
                 optimize_op = tf.train.AdamOptimizer(
                     learning_rate=spec['learning_rate'],
                     # beta1=0.9,
@@ -201,12 +188,13 @@ class BaseModel(object):
     def train(self, num_epochs=None, num_steps=None):
         """Train model as requested."""
         if num_steps is None:
-            num_entries = np.min([s.num_entries for s in list(self._train_data.values())])
-            num_steps = int(num_epochs * num_entries / self._batch_size)
+            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
+            num_steps = int(num_epochs * num_batches)
         self.initialize_if_not(training=True)
 
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
+        logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
             fetches = {}
 
@@ -222,12 +210,21 @@ class BaseModel(object):
 
             # Run one optimization iteration and retrieve calculated loss values
             self.time.start('train_iteration', average_over_last_n_timings=100)
+
+            # Get a batch of data
+            x, y = self._train_data['real'].get_batch()  # TODO Really have to clean this
+            # Format feed dict
+            feed_dict = {i: d for i, d in zip(self.inputs['train']['input_sentences'], x)} # So to separate the 4 sentences
+            feed_dict[self.inputs['train']['target_sentence']] = y
+            feed_dict[self.inputs['train']['target_label']] = [1]
+            feed_dict[self.is_training] = True
+            feed_dict[self.use_batch_statistics] = True
+
+            logger.debug(feed_dict)
+
             outcome = self._tensorflow_session.run(
                 fetches=fetches,
-                feed_dict={
-                    self.is_training: True,
-                    self.use_batch_statistics: True,
-                }
+                feed_dict=feed_dict
             )
             self.time.end('train_iteration')
 
