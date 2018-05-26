@@ -29,8 +29,8 @@ class GAN(BaseModel):
         document_hidden_size = 128
         document_n_hidden = 4
         embedding_size = 100
-        vocab_size = 20000
-        batch_size = 32
+        vocab_size = data_sources['real'].vocab_size 
+        batch_size = data_sources['real'].batch_size 
         initializer = tf.contrib.layers.xavier_initializer
         rnn_activation = tf.nn.relu #TODO use tanh (default)?
 
@@ -92,9 +92,7 @@ class GAN(BaseModel):
     
         with tf.variable_scope('loss'):
             #sigmoid cross entropy loss TODO simpler loss function for binary prediction?
-            score_logit = tf.Print(score_logit, [score_logit, target_label])
             sigmoid_cross_entropy_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target_label, logits=score_logit)
-
 
         logger.info('Model {} building exiting.'.format(__name__))
 

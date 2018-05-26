@@ -28,7 +28,7 @@ if __name__ == '__main__':
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as session:
         logger.info('Initialize tensorflow session')
         # Declare some parameters
-        batch_size = 1
+        batch_size = 1 # TODO See how to implement placeholders of non-constant size, or how to pad imput to fit placeholder
 
         # Define model
         from datasources import TextSource

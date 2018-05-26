@@ -19,12 +19,12 @@ class TextSource(object):
                  file_path: int ='../datasets/train_stories.csv',
                  testing=False,
                  override_file=False,
-                 vocab_size=2e5):
+                 vocab_size=20000):
         """Initializes data source and loads sentences from disk"""
         self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
         self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'
         
-        self._vocab_size = vocab_size
+        self.vocab_size = vocab_size
 
         # If preprocessed file doesn't exit we create it
         if not os.path.exists(self._data_file) or override_file:
@@ -35,7 +35,7 @@ class TextSource(object):
         data = coree.load_preprocessed_data(self._data_file)
         
         self.len_data = len(data)  # Number of total data     
-        self._batch_size = batch_size
+        self.batch_size = batch_size
         self._data = data
         logger.debug('Loaded data : [{}, {}, ...]'.format(self._data[0],self._data[0]))
 
@@ -46,7 +46,7 @@ class TextSource(object):
     def _separate_sentences(self, data):
         inputs = []
         for i in range(4):
-            inputs.append(np.array([s[i] for s in data]))
+            inputs.append([s[i] for s in data])
         inputs = tuple(inputs)
         # inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
         outputs = [s[4] for s in data]                       # Last (5th) sentence as output
@@ -59,10 +59,10 @@ class TextSource(object):
         logger.debug('Generating new data batches')
         shuffled_data = self._shuffle()
         self._batched_data = []
-        for i in range(self.len_data//self._batch_size):
-            self._batched_data.append(shuffled_data[self._batch_size*i:self._batch_size*(i+1)])
-        if self.len_data%self._batch_size != 0:
-            logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self._batch_size))
+        for i in range(self.len_data//self.batch_size):
+            self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
+        if self.len_data%self.batch_size != 0:
+            logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self.batch_size))
 
     def get_batch(self):
         if not self._batched_data:
@@ -77,7 +77,7 @@ class TextSource(object):
         logger.info('Clean file {} created'.format(clean_file))
         logger.info('Started preprocessing data...')
         # Preprocess data
-        coree.preprocess_data(clean_file, self._vocab_size)
+        coree.preprocess_data(clean_file, self.vocab_size)
         logger.info('Data preprocessing and vocabulary creation complete.')
 
     def shape(self):

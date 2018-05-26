@@ -45,7 +45,7 @@ class BaseModel(object):
         train_data_sources = list(train_data.values())
         logger.debug('Data sources: {}'.format(train_data_sources))
         test_data_sources = list(test_data.values())
-        self._batch_size = train_data_sources.pop()._batch_size
+        self._batch_size = train_data_sources.pop().batch_size
         for data_source in train_data_sources + test_data_sources:
             if data_source.batch_size != self._batch_size:
                 raise ValueError(('Data source "%s" has anomalous batch size of %d ' +
@@ -105,12 +105,13 @@ class BaseModel(object):
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
             self.inputs[mode] = inputs
-            logger.debug(' [*] Model interfacers: \n - output : {}\ - loss_terms : {}\n - metrics : {}\n - inputs : {}'.format(
-                                                self.output_tensors, self.loss_terms, self.metrics, self.inputs ))
+            # logger.debug(' [*] Model interfacers: \n - output : {}\ - loss_terms : {}\n - metrics : {}\n - inputs : {}'.format(
+            #                                     self.output_tensors, self.loss_terms, self.metrics, self.inputs ))
+
             # Create summaries for scalars
             if mode == 'train':
                 for name, loss_term in loss_terms.items():
-                    self.summary.scalar('loss/%s/%s' % (mode, name), loss_term)
+                    self.summary.scalar('loss/%s/%s' % (mode, name), tf.squeeze(loss_term))  # Use tf.squeeze to solve dim error
                 for name, metric in metrics.items():
                     self.summary.scalar('metric/%s/%s' % (mode, name), metric)
 
