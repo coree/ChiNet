@@ -12,24 +12,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 from core import BaseDataSource
+import util.preprocessor as coree
 
 class TextSource(object):
     def __init__(self,
                  batch_size: int,
-                 file_path: str,
+                 file_path: int ='../datasets/train_stories.csv',
                  testing=False,
-                 override_file=False):
+                 override_file=False,
+                 vocab_size=2e5):
         """Initializes data source and loads sentences from disk"""
-        clean_file = ''.join(os.path.splitext(file_path)[0]) + '.neat'
-        # If clean pickled file doesn't exit we create it
-        if not os.path.exists(clean_file) or override_file:
-            logger.info('Clean file {} generated'.format(clean_file))
-            self._preprocess_file(file_path, clean_file)
+        self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
+        self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'
+        
+        self._vocab_size = vocab_size
+
+        # If preprocessed file doesn't exit we create it
+        if not os.path.exists(self._data_file) or override_file:
+            self.preprocess(file_path, self._sentences_file)
+
         # Open clean data file
-        with open(clean_file, 'rb') as f:
-            logger.info('Loading data from {}'.format(clean_file))
-            data = pickle.load(f)
- 
+        logger.info('Loading data from {}'.format(self._data_file))
+        data = coree.load_preprocessed_data(self._data_file)
+        
         self._len = len(data)
         self._batch_size = batch_size
         self._data = data
@@ -60,17 +65,15 @@ class TextSource(object):
         logging.debug("Current numeber of batches: {}".format(len(self._batched_data)))
         return self._separate_sentences(self._batched_data.pop())
 
-    def _preprocess_file(self, file_path, clean_file):
-            with open(file_path, 'r') as f:
-                data = list(csv.DictReader(f))
-            # Just grab sentences from 1 to 5 and save them in a new file
-            data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data] 
-            with open(clean_file, 'wb') as f:
-                data = pickle.dump(data, f)
-
-    def preprocess_data(self):
-        # Whatever preprocess we may do to the data
-        pass
+    def preprocess(self, file_path, clean_file):
+        """ Whole preprocess pipeline data"""
+        # Preprocess file
+        coree.preprocess_file(file_path, clean_file)
+        logger.info('Clean file {} created'.format(clean_file))
+        logger.info('Started preprocessing data...')
+        # Preprocess data
+        coree.preprocess_data(clean_file, self._vocab_size)
+        logger.info('Data preprocessing and vocabulary creation complete.')
 
     def shape(self):
         # In principle our placeholders are [None, None], so just leavin' this here
