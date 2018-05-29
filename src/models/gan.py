@@ -23,23 +23,27 @@ class GAN(BaseModel):
         
         logger.info('Start building model {}'.format(__name__))
 
-
         #parameters TODO config from higher level
         sentence_hidden_size = 64
         document_hidden_size = 128
-        document_n_hidden = 4
         embedding_size = 100
+        max_sentence_length = 50
+        input_sentence_n = 4
+        document_n_hidden = input_sentence_n
         vocab_size = data_sources['real'].vocab_size 
         batch_size = data_sources['real'].batch_size 
         initializer = tf.contrib.layers.xavier_initializer
         rnn_activation = tf.nn.relu #TODO use tanh (default)?
 
         #inputs
-        input_sentences = [tf.placeholder(shape=[None, None], dtype=tf.int64) for i in range(4)]
-        target_sentence = tf.placeholder(shape=[None, None], dtype=tf.int64, name='target_sentence')
+        input_sentences = [tf.placeholder(shape=[batch_size, max_sentence_length], dtype=tf.int64) for i in range(input_sentence_n)]
+        target_sentence = tf.placeholder(shape=[batch_size, max_sentence_length], dtype=tf.int64, name='target_sentence')
 
-        target_label = tf.placeholder(shape=[None], dtype=tf.float32, name='target_label') # input_tensors['target_label'] #0=false ending 1=true ending
-        word2vec_weights = tf.placeholder(shape=[None, None], dtype=tf.float32)  # input_tensors['embedding_weights'] #loaded word2vec embedding weights
+        input_sentence_lengths = [tf.placeholder(shape=[batch_size], dtype=tf.int32) for i in range(input_sentence_n)]
+        target_sentence_length = tf.placeholder(shape=[batch_size], dtype=tf.int32)
+
+        target_label = tf.placeholder(shape=[batch_size], dtype=tf.float32, name='target_label') # input_tensors['target_label'] #0=false ending 1=true ending
+        word2vec_weights = tf.placeholder(shape=[vocab_size, embedding_size], dtype=tf.float32)  # input_tensors['embedding_weights'] #loaded word2vec embedding weights
 
 
         ### SUBSTITUTED FOR NOW WITH ONE HOT ENCODING (FOR TESTING POURPOSES)
@@ -54,25 +58,27 @@ class GAN(BaseModel):
         #         embedded_inputs += [tf.nn.embedding_lookup(embedding_weights, sentence)]
         #     embedded_target = tf.nn.embedding_lookup(embedding_weights, target_sentence)
         #     #embedded sentence shape [batch_size, embedding_size]
-        embedded_inputs = [tf.one_hot(s, 20000) for s in input_sentences]
-        embedded_target = tf.one_hot(target_sentence, 20000)
+
+        embedded_inputs = [tf.one_hot(s, vocab_size) for s in input_sentences]
+        embedded_target = tf.one_hot(target_sentence, vocab_size)
 
         #sentence rnn
         with tf.variable_scope('sentence'):
             #collect inputs and targets in list
-            embedded_inputs_target_list = embedded_inputs + [embedded_target]
-            
+            embedded_inputs_target = embedded_inputs + [embedded_target]
+            inputs_target_sentence_lengths = inputs_sentence_lengths + [target_sentence_length]
+
             #define rnn cell type
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=sentence_hidden_size, activation=rnn_activation) 
 
             #apply rnn to each sentence
             sentence_states = []
-            for embedded_sentence in embedded_inputs_target_list:
-                sentence_output, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, embedded_sentence, dtype=tf.float32)
+            for embedded_sentence, sentence_length in zip(embedded_inputs_target, inputs_target_sentence_lengths):
+                sentence_output, sentence_state = tf.nn.dynamic_rnn(cell=sentence_rnn_cell, inputs=embedded_sentence, sequence_length=sentence_length, dtype=tf.float32)
                 sentence_states += [sentence_state]
 
             #separate sentence rnn final hidden states for inputs and target
-            rnn_state_inputs = tf.stack(sentence_states[:document_n_hidden], axis=1) #shape [batch_size, 4, document_hidden_size]
+            rnn_state_inputs = tf.stack(sentence_states[:document_n_hidden], axis=1) #shape [batch_size, input_sentence_n, document_hidden_size]
             rnn_state_target = sentence_states[document_n_hidden] # shape [batch_size, document_hidden_size]
 
         #TODO attention

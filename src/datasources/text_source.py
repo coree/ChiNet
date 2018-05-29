@@ -42,7 +42,18 @@ class TextSource(object):
         self._generate_batches()
         self.num_batches = len(self._batched_data)  # Number of batches
         logger.info('Text source initialize complete')
-        
+    
+    def _pad_and_measure_sentences(self, data, max_sentence_length=50):
+        padded_sentences = []
+        sentence_lengths = []
+        for d in data:
+            sentence_length = max(max_sentence_length, len(d))
+            #TODO vocab word for <pad>? for now 0
+            padded_sentence = d[:sequence_length] + [0]*(max_sentence_length-sequence_length)
+            padded_sentences += [padded_sentence]
+            sentence_lengths += [sentence_length]
+        return padded_sentences, sentence_lengths
+
     def _separate_sentences(self, data):
         inputs = []
         for i in range(4):
@@ -68,7 +79,9 @@ class TextSource(object):
         if not self._batched_data:
             self._generate_batches()
         logging.debug("Current numeber of batches: {}".format(len(self._batched_data)))
-        return self._separate_sentences(self._batched_data.pop())
+        data = self._batched_data.pop()
+        padded_data, sentence_lengths = self._pad_and_measure_sentences(data)
+        return self._separate_sentences(padded_data), sentence_lengths
 
     def preprocess(self, file_path, clean_file):
         """ Whole preprocess pipeline data"""
