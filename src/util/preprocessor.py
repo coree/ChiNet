@@ -81,7 +81,7 @@ def dehumanify(sentence):
 def preprocess_file(file_path='../datasets/train_stories.csv', 
                          clean_file='../datasets/train_stories.clean'):
     """ Preprocess the csv into a pickled python list"""
-    with open(file_path, 'r') as f:
+    with open(file_path, 'r', encoding='utf-8') as f:
         data = list(csv.DictReader(f))
     # Just grab sentences from 1 to 5 and save them in a new file
     data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data] 

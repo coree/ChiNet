@@ -16,14 +16,14 @@ Source paper: [Conditional Generative Adversarial Networks for Commonsense Machi
 - **Joseph**:Implement word preprocessing
 >Except maybe \<unk\>, no tokens should be necessary. All sentences should be processed such that strings representing words are replaced by their index in the vocabulary. Use vocabulary size 20k?
 
-- Fix word2vec embedding loading
+- **Xander** Fix word2vec embedding loading
 >Currently gan.py takes an embedding weight matrix in the same way it takes a data batch, a better solution is likely possible.
 
 - Test and debug discriminator
 
-- Implement attention
+- **Xander** Implement attention
 
-- Implement generator
+- **Xander** Implement generator
 
 - Train model (DIFFICULT!)
 
