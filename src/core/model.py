@@ -213,12 +213,12 @@ class BaseModel(object):
             self.time.start('train_iteration', average_over_last_n_timings=100)
 
             # Get a batch of data
-            x, y, sentence_lengths = self._train_data['real'].get_batch()  # TODO Really have to clean this
+            sentences, sentence_lengths = self._train_data['real'].get_batch()  # TODO Really have to clean this
             # Format feed dict
-            feed_dict = {i: d for i, d in zip(self.inputs['train']['input_sentences'], x)} # So to separate the 4 sentences
-            feed_dict[self.inputs['train']['target_sentence']] = y
+            feed_dict = dict()
+            feed_dict[self.inputs['train']['sentences']] = np.array(sentences)
+            feed_dict[self.inputs['train']['sentence_lengths']] = np.array(sentence_lengths)
             feed_dict[self.inputs['train']['target_label']] = [1]
-            feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 

@@ -44,24 +44,27 @@ class TextSource(object):
         logger.info('Text source initialize complete')
     
     def _pad_and_measure_sentences(self, data, max_sentence_length=50):
-        padded_sentences = []
-        sentence_lengths = []
-        for d in data:
-            sentence_length = max(max_sentence_length, len(d))
-            #TODO vocab word for <pad>? for now 0
-            padded_sentence = d[:sequence_length] + [0]*(max_sentence_length-sequence_length)
-            padded_sentences += [padded_sentence]
-            sentence_lengths += [sentence_length]
+        batch_size = len(data)
+        sentence_n = len(data[0])
+        padded_sentences = np.zeros([batch_size, sentence_n, max_sentence_length])
+        sentence_lengths = np.zeros([batch_size, sentence_n])
+        for i in range(batch_size):
+            for j in range(sentence_n):
+                sentence = data[i][j]
+                sentence_length = min(max_sentence_length, len(sentence))
+                stop_symbol = 0 #TODO
+                padded_sentences[i,j] = sentence[:sentence_length] + [stop_symbol]*(max_sentence_length-sentence_length)
+                sentence_lengths[i,j] = sentence_length
         return padded_sentences, sentence_lengths
 
-    def _separate_sentences(self, data):
-        inputs = []
-        for i in range(4):
-            inputs.append([s[i] for s in data])
-        inputs = tuple(inputs)
-        # inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
-        outputs = [s[4] for s in data]                       # Last (5th) sentence as output
-        return inputs, outputs
+#    def _separate_sentences(self, data):
+#        inputs = []
+#        for i in range(4):
+#            inputs.append([s[i] for s in data])
+#        inputs = tuple(inputs)
+#        # inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
+#        outputs = [s[4] for s in data]                       # Last (5th) sentence as output
+#        return inputs, outputs
 
     def _shuffle(self):
         return [self._data[i] for i in permutation(self.len_data)]
@@ -80,8 +83,7 @@ class TextSource(object):
             self._generate_batches()
         logging.debug("Current numeber of batches: {}".format(len(self._batched_data)))
         data = self._batched_data.pop()
-        padded_data, sentence_lengths = self._pad_and_measure_sentences(data)
-        return self._separate_sentences(padded_data), sentence_lengths
+        return self._pad_and_measure_sentences(data)
 
     def preprocess(self, file_path, clean_file):
         """ Whole preprocess pipeline data"""

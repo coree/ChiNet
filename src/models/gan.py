@@ -36,11 +36,8 @@ class GAN(BaseModel):
         rnn_activation = tf.nn.relu #TODO use tanh (default)?
 
         #inputs
-        input_sentences = [tf.placeholder(shape=[batch_size, max_sentence_length], dtype=tf.int64) for i in range(input_sentence_n)]
-        target_sentence = tf.placeholder(shape=[batch_size, max_sentence_length], dtype=tf.int64, name='target_sentence')
-
-        input_sentence_lengths = [tf.placeholder(shape=[batch_size], dtype=tf.int32) for i in range(input_sentence_n)]
-        target_sentence_length = tf.placeholder(shape=[batch_size], dtype=tf.int32)
+        sentences = tf.placeholder(shape=[batch_size, input_sentence_n+1, max_sentence_length], dtype=tf.int64, name='sentences')
+        sentence_lengths = tf.placeholder(shape=[batch_size, input_sentence_n+1], dtype=tf.int32, name='sentence_lengths')
 
         target_label = tf.placeholder(shape=[batch_size], dtype=tf.float32, name='target_label') # input_tensors['target_label'] #0=false ending 1=true ending
         word2vec_weights = tf.placeholder(shape=[vocab_size, embedding_size], dtype=tf.float32)  # input_tensors['embedding_weights'] #loaded word2vec embedding weights
@@ -59,27 +56,22 @@ class GAN(BaseModel):
         #     embedded_target = tf.nn.embedding_lookup(embedding_weights, target_sentence)
         #     #embedded sentence shape [batch_size, embedding_size]
 
-        embedded_inputs = [tf.one_hot(s, vocab_size) for s in input_sentences]
-        embedded_target = tf.one_hot(target_sentence, vocab_size)
+        embedded_sentences = tf.one_hot(sentences, vocab_size)
 
         #sentence rnn
         with tf.variable_scope('sentence'):
-            #collect inputs and targets in list
-            embedded_inputs_target = embedded_inputs + [embedded_target]
-            inputs_target_sentence_lengths = inputs_sentence_lengths + [target_sentence_length]
-
             #define rnn cell type
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=sentence_hidden_size, activation=rnn_activation) 
 
             #apply rnn to each sentence
             sentence_states = []
-            for embedded_sentence, sentence_length in zip(embedded_inputs_target, inputs_target_sentence_lengths):
-                sentence_output, sentence_state = tf.nn.dynamic_rnn(cell=sentence_rnn_cell, inputs=embedded_sentence, sequence_length=sentence_length, dtype=tf.float32)
+            for i in range(input_sentence_n+1):
+                sentence_output, sentence_state = tf.nn.dynamic_rnn(cell=sentence_rnn_cell, inputs=embedded_sentences[:,i], sequence_length=sentence_lengths[:,i], dtype=tf.float32)
                 sentence_states += [sentence_state]
 
             #separate sentence rnn final hidden states for inputs and target
-            rnn_state_inputs = tf.stack(sentence_states[:document_n_hidden], axis=1) #shape [batch_size, input_sentence_n, document_hidden_size]
-            rnn_state_target = sentence_states[document_n_hidden] # shape [batch_size, document_hidden_size]
+            rnn_state_inputs = tf.stack(sentence_states[:input_sentence_n], axis=1) #shape [batch_size, input_sentence_n, document_hidden_size]
+            rnn_state_target = sentence_states[input_sentence_n] # shape [batch_size, document_hidden_size]
 
         #TODO attention
         
@@ -104,10 +96,6 @@ class GAN(BaseModel):
 
         return ({"score": score},          # Output
                 {"sigmoid_cross_entropy": sigmoid_cross_entropy_loss},   # Loss
-                {} ,        # Any metric we may wanna monitor (I guess)
-                {'input_sentences': input_sentences, 'target_sentence': target_sentence,  # Inputs we desire on the model
-                    'target_label': target_label   , 'word2vec_weights' : word2vec_weights})                                                                           
-                                    #  (The explanation for this change is that I don't 
-                                    #  really like the way in which everything is dependent
-                                    #  on the session so we feed this later using "feed_dict".
-                                    #  Also it may be useful to add other stuff we wanna montior.)
+                {},
+                {"sentences": sentences, "sentence_lengths": sentence_lengths, "target_label": target_label}
+                )         # Any metric we may wanna monitor (I guess)

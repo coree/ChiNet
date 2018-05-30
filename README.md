@@ -6,13 +6,6 @@ Source paper: [Conditional Generative Adversarial Networks for Commonsense Machi
 ## Tasks
 [Put your name next to tasks you are currently working on and remove tasks once you have pushed to repo]
 
-- **Nil**:  ~~Implement framework for training (including logging) and predicting~~ (Disclaimer: batch size needs to be fixed) 
-
-- **Nil**:  ~~Implement data reader~~
-> **Disclaimer on two above:** As we are allowed to use _any Tensorflow code_ (lit.) I'm gonna port the Machine Perception skeleton (citing that I took it from there obviously. If anyone has a issue with that reach me. 
-
-> **ETC - Saturday** (Yet have to do a lot of MoC so I may send an SOS before then if I feel too pressured.) If y'all feel like this should be finished earlier and/or wants to do it, tell me, I'll post now the MP skeleton for you to finish cleaning and adapting it. 
-
 - **Joseph**:Implement word preprocessing
 >Except maybe \<unk\>, no tokens should be necessary. All sentences should be processed such that strings representing words are replaced by their index in the vocabulary. Use vocabulary size 20k?
 

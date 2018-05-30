@@ -109,7 +109,7 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     for progress, block in enumerate(raw):
         story =[]
         for line in block: 
-            tokens = nltk.word_tokenize(line)
+            tokens = nltk.word_tokenize(str(line))
             sentence = []
             dehumanify(tokens)  
             for token in tokens:
