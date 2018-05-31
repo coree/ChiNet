@@ -1,5 +1,5 @@
 """Model definitions (one class per file) to define NN architectures."""
 
-from .gan import GAN
+from .cgan import CGAN
 
-__all__ = ('GAN')
+__all__ = ('CGAN')

@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from gensim import models
+
 from .live_tester import LiveTester
 from .time_manager import TimeManager
 from .summary_manager import SummaryManager
@@ -131,6 +133,7 @@ class BaseModel(object):
             self._tester._post_model_build()  # Create copy ops to be run before every test run
         self.summary._post_model_build()  # Merge registered summary operations
 
+    
     def build_model(self, data_sources: Dict[str, TextSource], mode: str):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
@@ -150,6 +153,7 @@ class BaseModel(object):
         self._tensorflow_session.run(tf.global_variables_initializer())
         self._initialized = True
 
+    #TODO will this be used?
     def _build_optimizers(self):
         """Based on learning schedule, create optimizer instances."""
         self._optimize_ops = []
@@ -186,8 +190,47 @@ class BaseModel(object):
             self._optimize_ops.append(optimize_ops)
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
 
-    def train(self, num_epochs=None, num_steps=None):
-        """Train model as requested."""
+    #load embeddings from file and call embedding matrix assign op
+    def load_embeddings(self, vocab_size=25000, embedding_size=100, path="../word2vec"): #TODO get vocab_size and embedding_size params from elsewhere?
+
+        print("Loading external embeddings from %s" % path)
+
+        model = models.KeyedVectors.load_word2vec_format(path, binary=False)  
+        external_embedding = np.zeros(shape=(vocab_size, embedding_size))
+        matches = 0
+
+        for tok, idx in vocab.items():
+            if tok in model.vocab:
+                external_embedding[idx] = model[tok]
+                matches += 1
+            else:
+                print("%s not in embedding file" % tok)
+                external_embedding[idx] = np.random.uniform(low=-0.25, high=0.25, size=embedding_size)
+                                                                                                        
+        print("%d words out of %d could be loaded" % (matches, vocab_size))
+        
+        #TODO also assign embedding start and stop words, perhaps also stop word error bound 
+
+        fetches['output_tensors'] = ["embeding_assign_op"]
+
+        feed_dict = {"word2vec_weights": external_embedding}
+
+        outcome = self.__tensorflow_session.run(
+            fetches=fetches,
+            feed_dict=feed_dict
+        )
+
+    #[GAN HACK pretrain generator to output target sentences from only noise TODO use also input sentences?] 
+    def pretrain(self, num_epochs=None, num_steps=None):
+        #TODO how does weight saving work for pretraining?
+
+        #Pseudocode
+
+        #Pretrain generator (repeat n_epochs)
+        #generate sentence from random noise
+        #sample target sentence
+        #optimize generator loss using distance between target sentence and generated sentence (TODO what distance metric?)
+        
         if num_steps is None:
             num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
             num_steps = int(num_epochs * num_batches)
@@ -195,39 +238,25 @@ class BaseModel(object):
 
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
+        
         logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
-            fetches = {}
+            fetches['loss_terms'] = ["pretrain_generator_loss"] #TODO correct?
 
-            # Select loss terms, optimize operations, and metrics tensors to evaluate
-            schedule_id = current_step % len(self._learning_schedule)
-            schedule = self._learning_schedule[schedule_id]
-            fetches['optimize_ops'] = self._optimize_ops[schedule_id]
-            loss_term_keys, _ = zip(*list(schedule['loss_terms_to_optimize'].items()))
-            fetches['loss_terms'] = [self.loss_terms['train'][k] for k in loss_term_keys]
-            summary_ops = self.summary.get_ops(mode='train')
-            if len(summary_ops) > 0:
-                fetches['summaries'] = summary_ops
-
-            # Run one optimization iteration and retrieve calculated loss values
-            self.time.start('train_iteration', average_over_last_n_timings=100)
-
-            # Get a batch of data
-            sentences, sentence_lengths = self._train_data['real'].get_batch()  # TODO Really have to clean this
-            # Format feed dict
+            sentences, sentence_lengths = self._train_data['real'].get_batch()
             feed_dict = dict()
-            feed_dict[self.inputs['train']['sentences']] = np.array(sentences)
-            feed_dict[self.inputs['train']['sentence_lengths']] = np.array(sentence_lengths)
-            feed_dict[self.inputs['train']['target_label']] = [1]
+            feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
+            feed_dict[self.inputs['train']['extra_sentence_length']] = sentences_lengths[:,-1]
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 
             logger.debug(feed_dict)
 
-            outcome = self._tensorflow_session.run(
+            outcome = self.__tensorflow_session.run(
                 fetches=fetches,
                 feed_dict=feed_dict
             )
+            
             self.time.end('train_iteration')
 
             # Print progress
@@ -251,49 +280,110 @@ class BaseModel(object):
         # Save final weights
         self.checkpoint.save_all(current_step)
 
-    def evaluate_for_kaggle(self, data_source):
-        """Evaluate on given data for Kaggle submission."""
-        self.initialize_if_not()
-        first_training_data_source = next(iter(self._train_data.values()))
-        input_tensors = first_training_data_source.output_tensors
+    def train(self, num_epochs=None, num_steps=None):
+        #Psudocode
 
-        predictions = []
+        #Train discriminator and generator (repeat n_epochs)
 
-        read_entry = data_source.entry_generator()
-        num_entries = data_source.num_entries
-        batch_size = data_source.batch_size
-        num_batches = int(np.ceil(num_entries / batch_size))
+        #Discriminator training (repeat n_step_d)
+        #sample input sentences and target sentence
+        #generate sentence from random noise and input sentences
+        #[GAN HACK add noise to generated or target sentence later in training to increase performance]
+        #compute discrimator scores for generated and target sentence
+        #optimize discriminator loss using discriminator scores
 
-        logger.info('Evaluating %d batches for Kaggle submission.' % num_batches)
-        for i in range(num_batches):
-            a = i * batch_size
-            z = min(a + batch_size, num_entries)
-            current_batch_size = z - a
-            img_batch = []
-            for _ in range(current_batch_size):
-                preprocess_out = data_source.preprocess_entry(next(read_entry))
-                img_batch.append(preprocess_out['img'])
-            if current_batch_size < batch_size:
-                difference = batch_size - current_batch_size
-                img_batch = np.pad(img_batch, pad_width=[(0, difference), (0, 0), (0, 0), (0, 0)],
-                                    mode='constant', constant_values=0.0)
-            kp_batch = self._tensorflow_session.run(
-                self.output_tensors['train']['kp_2D'],
-                feed_dict={
-                    input_tensors['img']: np.asarray(img_batch),
-                    self.is_training: False,
-                    self.use_batch_statistics: True,
-                },
-            )[:current_batch_size, :]
-            predictions += list(kp_batch.reshape(-1, 2*21))
+        #Generator training (repeat n_step_g)
+        #sample input sentences and target sentence
+        #generate sentence from random noise and input sentences
+        #compute discriminator score for generated sentence 
+        #optimize generator loss using discriminator score [GAN HACK also use similarity to target sentence in loss]
+        
+        #[GAN HACK update n_step_d and n_step_g using discriminator and generator losses]
 
-        output_file = '%s/to_submit_to_kaggle_%d.csv' % (self.output_path, time.time())
-        coloumns = []
-        for i in range(21):
-            coloumns += ['Joint %d x' % i]
-            coloumns += ['Joint %d y' % i]
+        if num_steps is None:
+            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
+            num_steps = int(num_epochs * num_batches)
+        self.initialize_if_not(training=True)
 
-        final_output = pd.DataFrame(predictions, columns=coloumns)
-        final_output.index.name = 'Id'
-        final_output.to_csv(output_file)
-        logger.info('Created submission at %s' % os.path.relpath(output_file))
+        initial_step = self.checkpoint.load_all()
+        current_step = initial_step
+
+        num_steps_discriminator = 20
+        num_steps_generator = 20
+        
+        logger.info(' * Number of steps: {}'.format(num_steps)) 
+        for current_step in range(initial_step, num_steps):
+
+            for substep in range(num_steps_discriminator):
+                fetches['loss_terms'] = ['discriminator_loss']
+
+                sentences, sentence_lengths = self._train_data['real'].get_batch()
+                feed_dict = dict()
+                feed_dict[self.inputs['train']['sentences']] = sentences
+                feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
+                feed_dict[self.is_training] = True
+                feed_dict[self.use_batch_statistics] = True
+
+                outcome = self.__tensorflow_session.run(
+                    fetches=fetches,
+                    feed_dict=feed_dict
+                )
+            
+            for substep in range(num_steps_generator):
+                fetches['loss_terms'] = ['discriminator_loss']
+
+                sentences, sentence_lengths = self._train_data['real'].get_batch()
+                feed_dict = dict()
+                feed_dict[self.inputs['train']['sentences']] = sentences
+                feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
+                feed_dict[self.is_training] = True
+                feed_dict[self.use_batch_statistics] = True
+
+                outcome = self.__tensorflow_session.run(
+                    fetches=fetches,
+                    feed_dict=feed_dict
+                )
+
+            #TODO how do I get losses here?
+            #update num_steps_discriminator and num_steps_generator
+ 
+            self.time.end('train_iteration')
+
+            # Print progress
+            to_print = '%07d> ' % current_step
+            to_print += ', '.join(['%s = %f' % (k, v)
+                                   for k, v in zip(loss_term_keys, outcome['loss_terms'])])
+            self.time.log_every('train_iteration', to_print, seconds=2)
+
+            # Trigger copy weights & concurrent testing (if not already running)
+            if self._enable_live_testing:
+                self._tester.trigger_test_if_not_testing(current_step)
+
+            # Write summaries
+            if 'summaries' in outcome:
+                self.summary.write_summaries(outcome['summaries'], current_step)
+
+            # Save model weights
+            if self.time.has_been_n_seconds_since_last('save_weights', 600):
+                self.checkpoint.save_all(current_step)
+
+        # Save final weights
+        self.checkpoint.save_all(current_step)
+
+    def evaluate(self, data_source):
+        #Pseudocode
+
+        #Predict correct story endings (repeat for every test data entry)
+
+        #sample inputs sentences and two target sentences
+        #compute discriminator scores for both target sentences
+        #predict whether first or second target sentence was right sentence using discriminator scores
+        #write scores to file #TODO how much of this to do here?
+
+        #fetches['output_tensors'] = ['predicted_ending']
+        #feed_dict[self.inputs['test']['sentences']]
+        #feed_dict[self.inputs['test']['sentence_lengths']]
+        #feed_dict[self.inputs['test']['extra_sentence']]
+        #feed_dict[self.inputs['test']['extra_sentence_length']]
+
+        pass

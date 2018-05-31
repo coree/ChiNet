@@ -28,12 +28,12 @@ if __name__ == '__main__':
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as session:
         logger.info('Initialize tensorflow session')
         # Declare some parameters
-        batch_size = 1 # TODO See how to implement placeholders of non-constant size, or how to pad imput to fit placeholder
+        batch_size = 2 # TODO See how to implement placeholders of non-constant size, or how to pad imput to fit placeholder
 
         # Define model
         from datasources import TextSource
-        from models import GAN
-        model = GAN(
+        from models import CGAN
+        model = CGAN(
             # Tensorflow session
             # Note: The same session must be used for the model and the data sources.
             session,
@@ -80,7 +80,12 @@ if __name__ == '__main__':
             # },
         )
 
-        # Train this model for a set number of epochs
+        model.load_embeddings(path="../word2vec")
+
+        #TODO pretrain
+
         model.train(
             num_epochs=50,
         )
+
+        #TODO predict
