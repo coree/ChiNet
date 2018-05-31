@@ -38,17 +38,16 @@ class GAN(BaseModel):
         #inputs
         sentences = tf.placeholder(shape=[batch_size, input_sentence_n+1, max_sentence_length], dtype=tf.int64, name='sentences')
         sentence_lengths = tf.placeholder(shape=[batch_size, input_sentence_n+1], dtype=tf.int32, name='sentence_lengths')
+        #for pretraining generator and evaluation where we have either only a target sentence or an extra target sentence
+        extra_target_sentence = tf.placeholder(shape=[batch_size, max_sentence_length], dtype=tf.int64, name='extra_target_sentence')
+        extra_target_sentence_length = tf.placeholder(shape=[batch_size], dtype=tf.int32, name="extra_target_sentence_length")
 
-        target_label = tf.placeholder(shape=[batch_size], dtype=tf.float32, name='target_label') # input_tensors['target_label'] #0=false ending 1=true ending
         word2vec_weights = tf.placeholder(shape=[vocab_size, embedding_size], dtype=tf.float32)  # input_tensors['embedding_weights'] #loaded word2vec embedding weights
 
-
-        ### SUBSTITUTED FOR NOW WITH ONE HOT ENCODING (FOR TESTING POURPOSES)
-        # #embedding
-        # with tf.variable_scope('embed'):
-        #     #load embedding weights
-        #     embedding_weights = tf.get_variable("weights", shape=[vocab_size, embedding_size], initializer=tf.constant_initializer([vocab_size, embedding_size]), trainable=False)
-        #     embedding_init = embedding_weights.assign(word2vec_weights) #embedding_init must be called to load embedding weights
+        #embedding
+        with tf.variable_scope('embedding'):
+             embedding_weights = tf.get_variable("weights", shape=[vocab_size, embedding_size], initializer=tf.constant_initializer([vocab_size, embedding_size]), trainable=False)
+            assign_embedding_op = embedding_weights.assign(word2vec_weights) #embedding_init must be called to load embedding weights
             
         #     embedded_inputs = []
         #     for sentence in input_sentences:
@@ -57,29 +56,35 @@ class GAN(BaseModel):
         #     #embedded sentence shape [batch_size, embedding_size]
 
         embedded_sentences = tf.one_hot(sentences, vocab_size)
+        embedded_extra_target_sentence = tf.one_hot(sentences, vocab_size)
 
         #sentence rnn
         with tf.variable_scope('sentence'):
             #define rnn cell type
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=sentence_hidden_size, activation=rnn_activation) 
 
+
+
             #apply rnn to each sentence
             sentence_states = []
             for i in range(input_sentence_n+1):
                 sentence_output, sentence_state = tf.nn.dynamic_rnn(cell=sentence_rnn_cell, inputs=embedded_sentences[:,i], sequence_length=sentence_lengths[:,i], dtype=tf.float32)
                 sentence_states += [sentence_state]
-
+            
             #separate sentence rnn final hidden states for inputs and target
             rnn_state_inputs = tf.stack(sentence_states[:input_sentence_n], axis=1) #shape [batch_size, input_sentence_n, document_hidden_size]
             rnn_state_target = sentence_states[input_sentence_n] # shape [batch_size, document_hidden_size]
+            #extra target sentence
+            rnn_state_extra_target = tf.nn.dynamic_rnn(cell=sentence_rnn_cell, inputs=embedded_extra_target_sentence, sequence_length=extra_target_sentence_length, dtype=tf.float32)
 
         #TODO attention
+        rnn_state_inputs_attention = rnn_state_inputs
         
         #document RNN
         with tf.variable_scope('document'):
             document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=document_hidden_size, activation=rnn_activation)
 
-            document_output, document_state = tf.nn.dynamic_rnn(document_rnn_cell, rnn_state_inputs, dtype=tf.float32)
+            document_output, document_state = tf.nn.dynamic_rnn(document_rnn_cell, rnn_state_inputs_attention, dtype=tf.float32)
 
             #transform document final hidden state from document space to sentence space
             document_state_sentence_space = tf.layers.dense(document_state, sentence_hidden_size) #TODO activation? no?
@@ -87,15 +92,25 @@ class GAN(BaseModel):
             #determine target sentence score
             score = tf.reduce_sum(tf.multiply(document_state_sentence_space, rnn_state_target), axis=1) #dot product
             score_logit = tf.sigmoid(score) #sigmoid to get probability
-    
-        with tf.variable_scope('loss'):
-            #sigmoid cross entropy loss TODO simpler loss function for binary prediction?
-            sigmoid_cross_entropy_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=target_label, logits=score_logit)
+            #extra target
+            score_extra = tf.reduce_sum(tf.multiply(document_state_sentence_space, rnn_state_extra_target), axis=1) 
+            score_logit_extra = tf.sigmoid(score_extra) 
+        
+
+        with tf.variable_scope("pretrain_generator_loss"):
+            pretrain_generator_loss = -similarity(embedded_extra_target_sentence, embedded_generated_sentence)
+
+        with tf.variable_scope("generator_loss"):
+            generator_loss = (1-score_generated) - similarity(embedded_target_sentence, embedded
+
+        with tf.variable_scope("discriminator_loss"):
+            discriminator_loss = (1-score(rnn_state_extra_target))
 
         logger.info('Model {} building exiting.'.format(__name__))
 
-        return ({"score": score},          # Output
-                {"sigmoid_cross_entropy": sigmoid_cross_entropy_loss},   # Loss
+        return ({"predicted_ending": predicted_ending},          # Output
+                {"pretrain_generator_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   # Loss
                 {},
                 {"sentences": sentences, "sentence_lengths": sentence_lengths, "target_label": target_label}
                 )         # Any metric we may wanna monitor (I guess)
+        #TODO remove target_label input without breaking things
