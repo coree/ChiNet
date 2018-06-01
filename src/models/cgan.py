@@ -40,6 +40,7 @@ def gumbel_softmax(generator_state, config):
     gumbel_g = -tf.log(-tf.log(gumbel_u))
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
     gumbel_y = tf.matmul(gumbel_p, embedding_weights)
+    
     return gumbel_y
 
 #generator conditional sentence generation
@@ -50,38 +51,38 @@ def generate_sentence(document_state, generator_rnn_cell, config, conditional=Tr
         embedded_stop_word = tf.get_variable("embedded_stop_word")
         embedded_start_word = tf.get_variable("embedded_start_word")
         stop_word_error_bound = tf.get_variable("stop_word_error_bound")
-
-    #generated_sentence = tf.fill(dims=[config['batch_size'], config['max_sentence_length'], config['embedding_size']], value=embedded_stop_word)
-    #generated_sentence_length = tf.fill(dims=[config['batch_size']], value=config['max_sentence_length'])
-            
-    random_seed = tf.random_normal([config['batch_size'],1]) #TODO change random seed every step? instead distort document state?
-
+         
     #condition on input document state depending on parameter
+    random_seed = tf.random_normal([config['batch_size'],1]) #TODO change random seed every step? instead distort document state?
     if conditional:
         generator_conditioners = tf.concat([document_state, random_seed], axis=1)
     else:
-        generator_conditioners = tf.concat([random_seed]*(config['document_hidden_size']+1), axis=1)
+        generator_conditioners = tf.concat([random_seed]*(config['document_hidden_size']+1), axis=1) #must have same shape as when conditioning on document
 
+    initial_word = tf.stack([embedded_start_word]*config['batch_size'], axis=0) #first word seen by generator
+
+    #generate max_sentence_length words
     generated_sentence_list = []
     generated_sentence_length_list = [tf.fill(dims=[], value=config['max_sentence_length'])]*config['batch_size']
 
-    initial_word = tf.stack([embedded_start_word]*config['batch_size'], axis=0)
-
-    generator_input = tf.concat([initial_word, generator_conditioners], axis=1)
+    generator_input = tf.concat([initial_word, generator_conditioners], axis=1) 
     generator_state = generator_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
     for i in range(config['max_sentence_length']):
         _, generator_state = generator_rnn_cell(generator_input, generator_state)
-        #determine embedded generated word from generator state 
+
+        #determine generated word (embedded) from generator state 
         generated_word = gumbel_softmax(generator_state=generator_state, config=config)
+
+        #set sequence length to min(sequence_length, i) if stop word was generated
         for j in range(config['batch_size']):
-            #set sequence length to min(sequence_length, i) if stop word was generated
             stop_word_generated_condition = (tf.reduce_sum(generated_word[j] - embedded_stop_word) < stop_word_error_bound) #TODO right way to do condition? TODO better way to check if embedding is "close enough"/equal to stop word?
             generated_sentence_length_list[j] = tf.cond(stop_word_generated_condition, lambda: tf.minimum(tf.constant(value=i), generated_sentence_length_list[j]), lambda: generated_sentence_length_list[j])
 
         #TODO terminate generation loop if stop words have been generated for every sentence in batch, sub-TODO: possible to only generate for batch elements where stop words not yet generated?
-        generated_sentence_list += [generated_word]
-
+        
         generator_input = tf.concat([generated_word, generator_conditioners], axis=1)
+
+        generated_sentence_list += [generated_word]
 
     generated_sentence = tf.stack(generated_sentence_list, axis=1)
     generated_sentence_length = tf.stack(generated_sentence_length_list, axis=0)
@@ -92,6 +93,7 @@ def generate_sentence(document_state, generator_rnn_cell, config, conditional=Tr
 def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_cell, sentence_n, config): #TODO sentence rnn cell through get_variables?
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
+    
     sentence_states_list = []
     for i in range(sentence_n):
         embedded_sentence = tf.nn.embedding_lookup(embedding_weights, sentences[:,i])
@@ -100,7 +102,7 @@ def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_c
         sentence_states_list += [sentence_state]
 
     sentence_states = tf.stack(sentence_states_list, axis=1)
-    
+
     return sentence_states
 
 class CGAN(BaseModel):
@@ -179,9 +181,9 @@ class CGAN(BaseModel):
         generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
+        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
 
-        score_generated = score(document_state, generated_sentence_state) 
+        score_generated = score(document_state, generated_state) 
         generator_loss = -tf.log(score_generated) - similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
         #Discriminator
