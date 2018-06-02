@@ -1,5 +1,6 @@
 """Base model class for Tensorflow-based model construction."""
 from datasources import TextSource
+from util.preprocessor import load_vocab
 import os
 import time
 from typing import Any, Dict, List
@@ -191,25 +192,34 @@ class BaseModel(object):
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
 
     #load embeddings from file and call embedding matrix assign op
-    def load_embeddings(self, vocab_size=25000, embedding_size=100, path="../word2vec"): #TODO get vocab_size and embedding_size params from elsewhere?
+    def load_embeddings(self, path, vocab_size=25000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
 
-        print("Loading external embeddings from %s" % path)
+        logger.info("Loading external embeddings from %s" % path)
 
-        model = models.KeyedVectors.load_word2vec_format(path, binary=False)  
+
+        _, vocab = load_vocab()  # Retrieve just word id
+        if not len(vocab) == vocab_size:
+            logger.warning(' Asked for a vocabulary size of {0} but vocabulary file has {1} entries. Setting vocab_size to {1}'.format(vocab_size, len(vocab)))
+        model = models.KeyedVectors.load_word2vec_format(path, binary=binary)  
+
+        embedding_size = model.vector_size  # Embedding size given by the loaded module
+        logger.info("Embedding size of {}".format)
+
         external_embedding = np.zeros(shape=(vocab_size, embedding_size))
-        matches = 0
 
+        non_included = []
         for tok, idx in vocab.items():
             if tok in model.vocab:
                 external_embedding[idx] = model[tok]
-                matches += 1
             else:
-                print("%s not in embedding file" % tok)
+                non_included.append(tok)
                 external_embedding[idx] = np.random.uniform(low=-0.25, high=0.25, size=embedding_size)
-                                                                                                        
-        print("%d words out of %d could be loaded" % (matches, vocab_size))
-        
-        #TODO also assign embedding start and stop words, perhaps also stop word error bound 
+
+        if not non_included:
+            logger.debug("Tokens not included: {}".format(non_included))
+            logger.warning('{} of {} tokens were not found in embedding fike'.format(len(non_included), vocab_size))
+
+        # TODO also assign embedding start and stop words, perhaps also stop word error bound 
 
         fetches['output_tensors'] = ["embeding_assign_op"]
 

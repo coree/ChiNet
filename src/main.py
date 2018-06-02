@@ -57,7 +57,7 @@ if __name__ == '__main__':
                     'learning_rate': 1e-4,
                 }
             ],
-            
+
             test_losses_or_metrics=['kp_2D_mse'],
 
             # Data sources for training and testing.
