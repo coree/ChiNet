@@ -132,7 +132,7 @@ class CGAN(BaseModel):
             extra_sentence_length = tf.placeholder(shape=[config['batch_size'], 1], dtype=tf.int32, name="extra_sentence_length")
 
         with tf.variable_scope('embedding'):
-            word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32) 
+            word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32, name='word2vec_weights') 
             embedding_weights = tf.get_variable("embedding_weights", shape=[config['vocab_size'], config['embedding_size']], trainable=False)
             embedding_assign_op = embedding_weights.assign(word2vec_weights) #must be called to load embedding weights
 
@@ -235,5 +235,6 @@ class CGAN(BaseModel):
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
                 {"pretrain_generator_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics
-                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length}  #input
+                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length,
+                    "word2vec_weights": word2vec_weights}  #input
                 )         

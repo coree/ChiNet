@@ -92,6 +92,7 @@ class BaseModel(object):
         self.loss_terms = {}
         self.metrics = {}
         self.inputs = {}
+        self.embedding_assign_op = {}
 
         def _build_datasource_summaries(data_sources, mode):
             """Register summary operations for input data from given data sources."""
@@ -101,10 +102,12 @@ class BaseModel(object):
             data_sources = self._train_data if mode == 'train' else self._test_data
 
             # Build model
-            output_tensors, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode)
+            raw_outputs, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode)
+            output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all 
 
             # Record important tensors
             self.output_tensors[mode] = output_tensors
+            self.embedding_assign_op[mode] = raw_outputs['embedding_assign_op']
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
             self.inputs[mode] = inputs
@@ -133,8 +136,7 @@ class BaseModel(object):
 
             self._tester._post_model_build()  # Create copy ops to be run before every test run
         self.summary._post_model_build()  # Merge registered summary operations
-
-    
+  
     def build_model(self, data_sources: Dict[str, TextSource], mode: str):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
@@ -221,11 +223,12 @@ class BaseModel(object):
 
         # TODO also assign embedding start and stop words, perhaps also stop word error bound 
 
-        fetches['output_tensors'] = ["embeding_assign_op"]
+        fetches = {}
+        fetches['output_tensors'] = self.embedding_assign_op['train']  # ["embeding_assign_op"]
 
-        feed_dict = {"word2vec_weights": external_embedding}
+        feed_dict = {self.inputs['train']['word2vec_weights']: external_embedding}
 
-        outcome = self.__tensorflow_session.run(
+        outcome = self._tensorflow_session.run(
             fetches=fetches,
             feed_dict=feed_dict
         )
@@ -251,19 +254,25 @@ class BaseModel(object):
         
         logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
-            fetches['loss_terms'] = ["pretrain_generator_loss"] #TODO correct?
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
             feed_dict = dict()
             feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
-            feed_dict[self.inputs['train']['extra_sentence_length']] = sentences_lengths[:,-1]
+            feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1]
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 
             logger.debug(feed_dict)
 
-            outcome = self.__tensorflow_session.run(
-                fetches=fetches,
+            fetches = {}
+            fetches['loss_terms'] = self.output_tensors['train']["pretrain_generator_loss"] #TODO correct?
+
+            summary_ops = self.summary.get_ops(mode='train')
+            if len(summary_ops) > 0:
+                fetches['summaries'] = summary_ops
+
+            outcome = self._tensorflow_session.run(
+                fetches=self.output_tensors['train']["pretrain_generator_loss"],
                 feed_dict=feed_dict
             )
             
@@ -271,8 +280,8 @@ class BaseModel(object):
 
             # Print progress
             to_print = '%07d> ' % current_step
-            to_print += ', '.join(['%s = %f' % (k, v)
-                                   for k, v in zip(loss_term_keys, outcome['loss_terms'])])
+            # to_print += ', '.join(['%s = %f' % (k, v)
+            #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
             self.time.log_every('train_iteration', to_print, seconds=2)
 
             # Trigger copy weights & concurrent testing (if not already running)
@@ -325,8 +334,12 @@ class BaseModel(object):
         for current_step in range(initial_step, num_steps):
 
             for substep in range(num_steps_discriminator):
-                fetches['loss_terms'] = ['discriminator_loss']
-
+                fetches = {}
+                fetches['loss_terms'] = self.loss_terms['train']['discriminator_loss']
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                if len(summary_ops) > 0:
+                    fetches['summaries'] = summary_ops
+                
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
                 feed_dict[self.inputs['train']['sentences']] = sentences
@@ -334,13 +347,17 @@ class BaseModel(object):
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
 
-                outcome = self.__tensorflow_session.run(
+                outcome = self._tensorflow_session.run(
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
             
             for substep in range(num_steps_generator):
-                fetches['loss_terms'] = ['discriminator_loss']
+                fetches = {}
+                fetches['loss_terms'] = self.loss_terms['train']['generator_loss']
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                if len(summary_ops) > 0:
+                    fetches['summaries'] = summary_ops
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -349,7 +366,7 @@ class BaseModel(object):
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
 
-                outcome = self.__tensorflow_session.run(
+                outcome = self._tensorflow_session.run(
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
