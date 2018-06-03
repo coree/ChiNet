@@ -9,10 +9,16 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+
 #cosine similarity
-def similarity(x, y):
+def cosine_similarity(x, y):
+    """Computes the cosine similarity between x and y"""
     #TODO implement
-    return 0
+    x = tf.nn.l2_normalize(tf.squeeze(x), 0)  # TODO IDK why I'm getting sometimes x with shape (2, 1, 64). WHATS GOING ON?!
+    y = tf.nn.l2_normalize(y, 0)
+    logger.critical('Forcefully reshaping sometimes in cos. similarity: x {} - y {} '.format(y, x))
+    return 1 - tf.losses.cosine_distance(x, y, axis=0)  # TODO Not completely sure 1 - cos distance is cos similarity (I'd say so tho)
+
 
 #discrimiantor score from input document state and target sentence state
 def score(document_state, target_sentence_state):
@@ -166,7 +172,7 @@ class CGAN(BaseModel):
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
 
-        pretrain_generator_loss = -similarity(target_state, generated_state)
+        pretrain_generator_loss = -cosine_similarity(target_state, generated_state)
 
         #Generator
         sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
@@ -184,7 +190,7 @@ class CGAN(BaseModel):
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
 
         score_generated = score(document_state, generated_state) 
-        generator_loss = -tf.log(score_generated) - similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
+        generator_loss = -tf.log(score_generated) - cosine_similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
         #Discriminator
         sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
