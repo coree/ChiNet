@@ -114,7 +114,7 @@ class CGAN(BaseModel):
         config['sentence_hidden_size'] = 64
         config['document_hidden_size'] = 128
         config['generator_hidden_size'] = 256
-        config['embedding_size'] = 100
+        config['embedding_size'] = 300
         config['max_sentence_length'] = 50
         config['input_sentence_n'] = 4
         config['vocab_size'] = data_sources['real'].vocab_size 

@@ -80,7 +80,8 @@ if __name__ == '__main__':
             # },
         )
 
-        model.load_embeddings(path="../word2vec")
+        model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin", 
+                              binary=True)
 
         #TODO pretrain
 
