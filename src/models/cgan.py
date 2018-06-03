@@ -71,7 +71,7 @@ def generate_sentence(document_state, generator_rnn_cell, config, conditional=Tr
     generator_input = tf.concat([initial_word, generator_conditioners], axis=1) 
     generator_state = generator_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
     for i in range(config['max_sentence_length']):
-        _, generator_state = generator_rnn_cell(generator_input, generator_state)
+        _, generator_state = generator_rnn_cell(generator_input, generator_state, scope="generator")
 
         #determine generated word (embedded) from generator state 
         generated_word = gumbel_softmax(generator_state=generator_state, config=config)
@@ -101,7 +101,7 @@ def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_c
     for i in range(sentence_n):
         embedded_sentence = tf.nn.embedding_lookup(embedding_weights, sentences[:,i])
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=embedded_sentence, sequence_length=sentence_lengths[:,i], initial_state=initial_state, dtype=tf.float32)
+        _, sentence_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=embedded_sentence, sequence_length=sentence_lengths[:,i], initial_state=initial_state, dtype=tf.float32, scope="sentence")
         sentence_states_list += [sentence_state]
 
     sentence_states = tf.stack(sentence_states_list, axis=1)
@@ -167,7 +167,7 @@ class CGAN(BaseModel):
         generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
+        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
 
         pretrain_generator_loss = -cosine_similarity(target_state, generated_state)
 
@@ -179,12 +179,12 @@ class CGAN(BaseModel):
         input_states_attention = input_states #TODO attention; use attention (introduces information about target) when generating sentence?
 
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32)
+        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
 
         generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
+        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
     
         score_generated = score(document_state, generated_state) 
         generator_loss = -tf.log(score_generated) - cosine_similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
@@ -197,12 +197,12 @@ class CGAN(BaseModel):
         input_states_attention = input_states #TODO attention; repeat document state twice for target and generated attention?
            
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32)
+        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
 
         generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
+        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
             
         score_generated = score(document_state, generated_state)
         score_target = score(document_state, target_state)
@@ -221,7 +221,7 @@ class CGAN(BaseModel):
         #TODO attention; 2 separate document states based on attention?
            
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32)
+        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
             
         score_target_1 = score(document_state, target_1_state)
         score_target_2 = score(document_state, target_2_state)
@@ -231,7 +231,6 @@ class CGAN(BaseModel):
         for i in range(config['batch_size']):
             predicted_ending_list += tf.cond(score_target_1[i] > score_target_2[i], lambda: 0, lambda: 1)
         predicted_ending = tf.stack(predicted_ending_list, axis=0)
-
 
         logger.info('Model {} building exiting.'.format(__name__))
 
