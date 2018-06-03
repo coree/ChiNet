@@ -232,11 +232,8 @@ class BaseModel(object):
 
         fetches = {}
         fetches['output_tensors'] = self.embedding_assign_op['train']  # ["embeding_assign_op"]
-
         feed_dict = {self.inputs['train']['word2vec_weights']: external_embedding}
-        sentences, sentence_lengths = self._train_data['real'].get_batch()  # TODO Okay no fucking idea why this is needed here
-        feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
-        feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1]
+
         outcome = self._tensorflow_session.run(
             fetches=fetches,
             feed_dict=feed_dict
@@ -266,8 +263,8 @@ class BaseModel(object):
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
             feed_dict = dict()
-            feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
-            feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1]
+            feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1:] #only target sentence
+            feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1:]
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 
@@ -284,7 +281,7 @@ class BaseModel(object):
                 fetches=self.output_tensors['train']["pretrain_generator_loss"],
                 feed_dict=feed_dict
             )
-            
+
             self.time.end('train_iteration')
 
             # Print progress
@@ -353,8 +350,6 @@ class BaseModel(object):
                 feed_dict = dict()
                 feed_dict[self.inputs['train']['sentences']] = sentences
                 feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
-                feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
-                feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1]
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
 
@@ -374,8 +369,6 @@ class BaseModel(object):
                 feed_dict = dict()
                 feed_dict[self.inputs['train']['sentences']] = sentences
                 feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
-                feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1] #only target sentence
-                feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1]
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
 

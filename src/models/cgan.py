@@ -13,12 +13,9 @@ logger = logging.getLogger(__name__)
 #cosine similarity
 def cosine_similarity(x, y):
     """Computes the cosine similarity between x and y"""
-    #TODO implement
-    x = tf.nn.l2_normalize(tf.squeeze(x), 0)  # TODO IDK why I'm getting sometimes x with shape (2, 1, 64). WHATS GOING ON?!
-    y = tf.nn.l2_normalize(y, 0)
-    logger.critical('Forcefully reshaping sometimes in cos. similarity: x {} - y {} '.format(y, x))
-    return 1 - tf.losses.cosine_distance(x, y, axis=0)  # TODO Not completely sure 1 - cos distance is cos similarity (I'd say so tho)
-
+    x = tf.nn.l2_normalize(x, 1)  
+    y = tf.nn.l2_normalize(y, 1)
+    return 1 - tf.losses.cosine_distance(x, y, axis=1)
 
 #discrimiantor score from input document state and target sentence state
 def score(document_state, target_sentence_state):
@@ -134,10 +131,8 @@ class CGAN(BaseModel):
             sentences = tf.placeholder(shape=[config['batch_size'], config['input_sentence_n']+1, config['max_sentence_length']], dtype=tf.int64, name='sentences')
             sentence_lengths = tf.placeholder(shape=[config['batch_size'], config['input_sentence_n']+1], dtype=tf.int32, name='sentence_lengths') 
             #extra sentence is used for pretraining and evaluation
-            extra_sentence_in = tf.placeholder(shape=[config['batch_size'], config['max_sentence_length']], dtype=tf.int64, name='extra_sentence_in')
-            extra_sentence_length_in = tf.placeholder(shape=[config['batch_size']], dtype=tf.int32, name="extra_sentence_length_in")
-        extra_sentence = tf.expand_dims(extra_sentence_in, axis=1)
-        extra_sentence_length = tf.expand_dims(extra_sentence_length_in, axis=1)            
+            extra_sentence = tf.placeholder(shape=[config['batch_size'], 1, config['max_sentence_length']], dtype=tf.int64, name='extra_sentence')
+            extra_sentence_length = tf.placeholder(shape=[config['batch_size'], 1], dtype=tf.int32, name="extra_sentence_length")
 
         with tf.variable_scope('embedding'):
             word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32, name='word2vec_weights') 
@@ -167,7 +162,7 @@ class CGAN(BaseModel):
 
         #GRAPHS 
         #Generator pretraining
-        target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)
+        target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)[:,0]
             
         generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, config=config)
 
@@ -190,7 +185,7 @@ class CGAN(BaseModel):
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32)
-
+    
         score_generated = score(document_state, generated_state) 
         generator_loss = -tf.log(score_generated) - cosine_similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
@@ -243,6 +238,6 @@ class CGAN(BaseModel):
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
                 {"pretrain_generator_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics
-                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence_in, "extra_sentence_length": extra_sentence_length_in,
+                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length,
                     "word2vec_weights": word2vec_weights}  #input
                 )         
