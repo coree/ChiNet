@@ -169,7 +169,7 @@ class CGAN(BaseModel):
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
 
-        pretrain_generator_loss = -cosine_similarity(target_state, generated_state)
+        pretrain_generator_loss = tf.reduce_sum(-cosine_similarity(target_state, generated_state))
 
         #Generator
         sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
@@ -187,7 +187,7 @@ class CGAN(BaseModel):
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
     
         score_generated = score(document_state, generated_state) 
-        generator_loss = -tf.log(score_generated) - cosine_similarity(target_state, generated_state) #TODO minus similarity? (paper says otherwise but I think it's typo)
+        generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state)) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
         #Discriminator
         sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
@@ -207,7 +207,7 @@ class CGAN(BaseModel):
         score_generated = score(document_state, generated_state)
         score_target = score(document_state, target_state)
 
-        discriminator_loss = -tf.log(score_target) - tf.log(1-score_generated)
+        discriminator_loss = tf.reduce_sum(-tf.log(score_target) - tf.log(1-score_generated))
 
         #Prediction
         sentences_with_extra = tf.concat([sentences, extra_sentence], axis=1)
