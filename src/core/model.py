@@ -167,19 +167,24 @@ class BaseModel(object):
             loss_terms = spec['loss_terms_to_optimize']
             assert isinstance(loss_terms, dict)
             for loss_term_key, prefixes in loss_terms.items():
-                assert loss_term_key in self.loss_terms['train'].keys()
-                logger.debug('Prefixes : {}'.format(prefixes))
-                if prefixes == 'ALL':
-                    logger.info('Training all trainable variables')
-                    variables_to_train = [v for v in all_trainable_variables]
-                else:
-                    variables_to_train = []
-                    for prefix in prefixes:
-                        variables_to_train += [
-                            v for v in all_trainable_variables
-                            if v.name.startswith(prefix)
-                        ]
-                logger.debug(' Variables to train : {}'.format(variables_to_train))
+                try:
+                    assert loss_term_key in self.loss_terms['train'].keys()
+                    logger.debug('Prefixes : {}'.format(prefixes))
+                    if prefixes == 'ALL':
+                        logger.info('Training all trainable variables')
+                        variables_to_train = [v for v in all_trainable_variables]
+                    else:
+                        variables_to_train = []
+                        for prefix in prefixes:
+                            variables_to_train += [
+                                v for v in all_trainable_variables
+                                if v.name.startswith(prefix)
+                            ]
+                    logger.debug(' Variables to train : {}'.format(variables_to_train))
+                except:
+                    logger.error('Obvious fail with {}'.format(loss_term_key))
+                
+                logger.critical(loss_term_key)
                 optimize_op = tf.train.AdamOptimizer(
                     learning_rate=spec['learning_rate'],
                     # beta1=0.9,
@@ -192,6 +197,7 @@ class BaseModel(object):
                 optimize_ops.append(optimize_op)
             self._optimize_ops.append(optimize_ops)
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
+        logger.error('Optimizer ops (size {}): {}'.format(len(self._optimize_ops), self._optimize_ops))
 
     #load embeddings from file and call embedding matrix assign op
     def load_embeddings(self, path, vocab_size=25000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
@@ -266,7 +272,7 @@ class BaseModel(object):
             logger.debug(feed_dict)
 
             fetches = {}
-            fetches['loss_terms'] = self.output_tensors['train']["pretrain_generator_loss"] #TODO correct?
+            fetches['optimize_ops'] = self._optimize_ops[0][0]  # TODO Really ugly fix
 
             summary_ops = self.summary.get_ops(mode='train')
             if len(summary_ops) > 0:
@@ -336,7 +342,7 @@ class BaseModel(object):
 
             for substep in range(num_steps_discriminator):
                 fetches = {}
-                fetches['loss_terms'] = self.loss_terms['train']['discriminator_loss']
+                fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
                 summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
                 if len(summary_ops) > 0:
                     fetches['summaries'] = summary_ops
@@ -355,7 +361,7 @@ class BaseModel(object):
             
             for substep in range(num_steps_generator):
                 fetches = {}
-                fetches['loss_terms'] = self.loss_terms['train']['generator_loss']
+                fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
                 if len(summary_ops) > 0:
                     fetches['summaries'] = summary_ops

@@ -51,7 +51,9 @@ if __name__ == '__main__':
             learning_schedule=[   # TODO: Implemet this in a nice and global way
                 {
                     'loss_terms_to_optimize': {
-                        'sigmoid_cross_entropy' : 'ALL'
+                        'pretrain_generator_loss': 'ALL',
+                        'generator_loss': 'ALL',
+                        'discriminator_loss': 'ALL'
                     },
                     'metrics': ['kp_2D_mse'],
                     'learning_rate': 1e-4,
