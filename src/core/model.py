@@ -333,18 +333,25 @@ class BaseModel(object):
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
 
-        num_steps_discriminator = 20
-        num_steps_generator = 20
+        max_steps = 20
+        initial_steps = 10
+
+        num_steps_discriminator = initial_steps
+        num_steps_generator = initial_steps
         
         logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
 
+            discriminator_losses = []
+            #discriminator training
             for substep in range(num_steps_discriminator):
                 fetches = {}
                 fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                if len(summary_ops) > 0:
-                    fetches['summaries'] = summary_ops
+                fetches['losses'] = self.loss_terms['train']['discriminator_loss']
+                
+                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                #if len(summary_ops) > 0:
+                #    fetches['summaries'] = summary_ops
                 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -357,13 +364,19 @@ class BaseModel(object):
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
+
+                discriminator_losses += [outcome['losses']]
+            discriminator_loss = np.mean(discriminator_losses)
             
+            generator_losses = []
+            #generator training
             for substep in range(num_steps_generator):
-                fetches = {}
+                fetches = {} 
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                if len(summary_ops) > 0:
-                    fetches['summaries'] = summary_ops
+                fetches['losses'] = self.loss_terms['train']['generator_loss']
+                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                #if len(summary_ops) > 0:
+                #    fetches['summaries'] = summary_ops
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -377,8 +390,14 @@ class BaseModel(object):
                     feed_dict=feed_dict
                 )
 
-            #TODO how do I get losses here?
+                generator_losses += [outcome['losses']]
+            generator_loss = np.mean(generator_losses)
+            
             #update num_steps_discriminator and num_steps_generator
+            loss_ratio = discriminator_loss / generator_loss
+            logger.error("Loss ratio terms",loss_ratio, discriminator_loss, generator_loss)
+            num_steps_discriminator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
+            num_steps_generator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
  
             self.time.end('train_iteration')
 
