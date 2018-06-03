@@ -134,8 +134,10 @@ class CGAN(BaseModel):
             sentences = tf.placeholder(shape=[config['batch_size'], config['input_sentence_n']+1, config['max_sentence_length']], dtype=tf.int64, name='sentences')
             sentence_lengths = tf.placeholder(shape=[config['batch_size'], config['input_sentence_n']+1], dtype=tf.int32, name='sentence_lengths') 
             #extra sentence is used for pretraining and evaluation
-            extra_sentence = tf.placeholder(shape=[config['batch_size'], 1, config['max_sentence_length']], dtype=tf.int64, name='extra_sentence')
-            extra_sentence_length = tf.placeholder(shape=[config['batch_size'], 1], dtype=tf.int32, name="extra_sentence_length")
+            extra_sentence_in = tf.placeholder(shape=[config['batch_size'], config['max_sentence_length']], dtype=tf.int64, name='extra_sentence_in')
+            extra_sentence_length_in = tf.placeholder(shape=[config['batch_size']], dtype=tf.int32, name="extra_sentence_length_in")
+        extra_sentence = tf.expand_dims(extra_sentence_in, axis=1)
+        extra_sentence_length = tf.expand_dims(extra_sentence_length_in, axis=1)            
 
         with tf.variable_scope('embedding'):
             word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32, name='word2vec_weights') 
@@ -241,6 +243,6 @@ class CGAN(BaseModel):
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
                 {"pretrain_generator_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics
-                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length,
+                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence_in, "extra_sentence_length": extra_sentence_length_in,
                     "word2vec_weights": word2vec_weights}  #input
                 )         
