@@ -44,51 +44,39 @@ def gumbel_softmax(generator_state, config):
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
     gumbel_y = tf.matmul(gumbel_p, embedding_weights)
     
-    return gumbel_y
+    return gumbel_y, gumbel_pi[:,config['stop_word_index']]
 
 #generator conditional sentence generation
-def generate_sentence(document_state, generator_rnn_cell, config, conditional=True):
+def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, config, conditional=True):
     with tf.variable_scope("generator", reuse=True):
         generator_to_embedding_weights = tf.get_variable("generator_to_embedding_weights")
-    with tf.variable_scope("vocab", reuse=True):
-        embedded_stop_word = tf.get_variable("embedded_stop_word")
-        embedded_start_word = tf.get_variable("embedded_start_word")
-        stop_word_error_bound = tf.get_variable("stop_word_error_bound")
-         
+    with tf.variable_scope("document", reuse=True):
+        document_to_generator_weights = tf.get_variable("document_to_generator_weights")
+
     #condition on input document state depending on parameter
-    random_seed = tf.random_normal([config['batch_size'], 1]) #TODO change random seed every step? instead distort document state?
-    random_seed = tf.Print(random_seed, [random_seed], 'Random seed: ')
-    # document_state = tf.Print(document_state, [document_state], 'Documetn state: ')  # Fails 'cus doc_state is none?
+    random_seed = tf.random_normal([config['batch_size'], config['generator_hidden_size']])
     if conditional:
-        generator_conditioners = tf.concat([document_state, random_seed], axis=1)
-        generator_conditioners = tf.Print(generator_conditioners, [generator_conditioners], 'Generator_conditioners (Is conditional): ')
+        document_state_generator_space = tf.matmul(document_state, document_to_generator_weights)
+        generator_conditioners = document_state_generator_space + random_seed
     else:
-        generator_conditioners = tf.concat([random_seed]*(config['document_hidden_size']+1), axis=1)  #must have same shape as when conditioning on document
-        generator_conditioners = tf.Print(generator_conditioners, [generator_conditioners], 'Generator_conditioners (non conditional): ')
-    initial_word = tf.stack([embedded_start_word]*config['batch_size'], axis=0) #first word seen by generator
+        generator_conditioners = random_seed
+    
+    initial_word = tf.stack([embedded_start_word]*config['batch_size'], axis=0) #first word seen by generator 
 
     #generate max_sentence_length words
     generated_sentence_list = []
     generated_sentence_length_list = [tf.fill(dims=[], value=config['max_sentence_length'])]*config['batch_size']
 
-    generator_input = tf.concat([initial_word, generator_conditioners], axis=1) 
-    generator_input = tf.Print(generator_input, [generator_input], 'Generator_input: ', summarize=1000000)
-    generator_state = generator_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-    generator_state = tf.Print(generator_state, [generator_state], 'Generator state w0: ', summarize=1000000)
+    generated_word = initial_word
+    generator_state = generator_conditioners #TODO tuple?
     for i in range(config['max_sentence_length']):
-        _, generator_state = generator_rnn_cell(generator_input, generator_state, scope="generator")
-        generator_state = tf.Print(generator_state, [generator_state], 'Generator state w{}: '.format(i))
-        #determine generated word (embedded) from generator state 
-        generated_word = gumbel_softmax(generator_state=generator_state, config=config)
+        _, generator_state = generator_rnn_cell(generated_word, generator_state, scope="generator")
+        generated_word, stop_word_probability = gumbel_softmax(generator_state=generator_state, config=config)
 
         #set sequence length to min(sequence_length, i) if stop word was generated
         for j in range(config['batch_size']):
-            stop_word_generated_condition = (tf.reduce_sum(generated_word[j] - embedded_stop_word) < stop_word_error_bound) #TODO right way to do condition? TODO better way to check if embedding is "close enough"/equal to stop word?
+            stop_word_generated_condition = stop_word_probability[j] > tf.constant(value=config['stop_word_bound'])
             generated_sentence_length_list[j] = tf.cond(stop_word_generated_condition, lambda: tf.minimum(tf.constant(value=i), generated_sentence_length_list[j]), lambda: generated_sentence_length_list[j])
-
-        #TODO terminate generation loop if stop words have been generated for every sentence in batch, sub-TODO: possible to only generate for batch elements where stop words not yet generated?
-        
-        generator_input = tf.concat([generated_word, generator_conditioners], axis=1)
 
         generated_sentence_list += [generated_word]
 
@@ -129,6 +117,9 @@ class CGAN(BaseModel):
         config['batch_size'] = data_sources['real'].batch_size
         config['initializer'] = tf.contrib.layers.xavier_initializer()
         config['rnn_activation'] = tf.nn.tanh 
+        config['start_word_index'] = 0
+        config['stop_word_index'] = 1
+        config['stop_word_bound'] = 0.9
 
         #SHARED VARIABLES
         with tf.variable_scope('inputs'):
@@ -143,12 +134,7 @@ class CGAN(BaseModel):
             word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32, name='word2vec_weights') 
             embedding_weights = tf.get_variable("embedding_weights", shape=[config['vocab_size'], config['embedding_size']], trainable=False)
             embedding_assign_op = embedding_weights.assign(word2vec_weights) #must be called to load embedding weights
-
-        with tf.variable_scope("vocab"):
-            #TODO how to find values? assign during load_embeddings? how to find good stop word error bound?
-            embedded_start_word = tf.get_variable("embedded_start_word", shape=[config['embedding_size']], initializer=tf.constant_initializer(0), dtype=tf.float32, trainable=False)
-            embedded_start_word = tf.get_variable("embedded_stop_word", shape=[config['embedding_size']], initializer=tf.constant_initializer(1), dtype=tf.float32, trainable=False)
-            stop_word_error_bound = tf.get_variable("stop_word_error_bound", shape=[], initializer=tf.constant_initializer(10), dtype=tf.float32, trainable=False)
+            embedded_start_word = tf.nn.embedding_lookup(embedding_weights, tf.constant(value=config['start_word_index']))
 
         with tf.variable_scope('sentence'):
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['sentence_hidden_size'], activation=config['rnn_activation'], name="sentence_cell")
@@ -158,6 +144,7 @@ class CGAN(BaseModel):
         with tf.variable_scope('document'):
             document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['document_hidden_size'], activation=config['rnn_activation'], name="document_cell")
             document_to_sentence_weights = tf.get_variable(name="document_to_sentence_weights", shape=[config['document_hidden_size'], config['sentence_hidden_size']], dtype=tf.float32, initializer=config['initializer'])
+            document_to_generator_weights = tf.get_variable(name="document_to_generator_weights", shape=[config['document_hidden_size'], config['generator_hidden_size']], dtype=tf.float32, initializer=config['initializer'])
 
         with tf.variable_scope('generator'):
             generator_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['generator_hidden_size'], activation=config['rnn_activation'], name="generator_cell")
@@ -169,7 +156,7 @@ class CGAN(BaseModel):
         #Generator pretraining
         target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)[:,0]
             
-        generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, config=config)
+        generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
@@ -186,7 +173,7 @@ class CGAN(BaseModel):
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
         document_state = tf.Print(document_state, [document_state], '\n - Document state: ')
-        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
+        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
         generated_sentence = tf.Print(generated_sentence, [generated_sentence], '* Generated sentence: ')
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
@@ -205,7 +192,7 @@ class CGAN(BaseModel):
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
 
-        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
+        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
 
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
