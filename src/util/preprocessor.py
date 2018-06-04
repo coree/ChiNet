@@ -49,8 +49,8 @@ def make_vocab(vocab, vocab_size):
 
     # build dictonary of word to ids
     word_id = {word: i for i, word in enumerate(known_words, 4)}
-    word_id["<eos>"] = 0
-    word_id["<bos>"] = 1
+    word_id["<bos>"] = 0
+    word_id["<eos>"] = 1
     word_id["<pad>"] = 2
     word_id["<unk>"] = 3
 

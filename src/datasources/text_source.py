@@ -54,6 +54,8 @@ class TextSource(object):
                 sentence_length = min(max_sentence_length, len(sentence))
                 pad_symbol = 2 #TODO
                 padded_sentences[i,j] = sentence[:sentence_length] + [pad_symbol]*(max_sentence_length-sentence_length)
+                if len(sentence) > max_sentence_length:
+                    sentence[max_sentence_length] = 1 # 1 for 'eos' symbol
                 sentence_lengths[i,j] = sentence_length
         return padded_sentences, sentence_lengths
 
