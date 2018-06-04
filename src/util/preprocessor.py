@@ -48,8 +48,12 @@ def make_vocab(vocab, vocab_size):
             known_words += [word]
 
     # build dictonary of word to ids
-    word_id = {word: i for i, word in enumerate(known_words, 1)}
-    word_id["<unk>"] = 0
+    word_id = {word: i for i, word in enumerate(known_words, 4)}
+    word_id["<eos>"] = 0
+    word_id["<bos>"] = 1
+    word_id["<pad>"] = 2
+    word_id["<unk>"] = 3
+
     id_word = dict(zip(word_id.values(), word_id.keys()))  # reverse dict to get word from id
     # write to pickle
     write_vocab(id_word, word_id)
@@ -139,6 +143,8 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     # exchanges words with ids and replaces words that are not in vocab with the id of unk
     for story in data:
         for sentence in story:
+            sentence = ['<bos>'] + sentence
+            sentence += ['<eos>']
             for idx, word in enumerate(sentence):
                 if word not in known_words:
                     sentence[idx] = word_id['<unk>']

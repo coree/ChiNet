@@ -52,8 +52,8 @@ class TextSource(object):
             for j in range(sentence_n):
                 sentence = data[i][j]
                 sentence_length = min(max_sentence_length, len(sentence))
-                stop_symbol = 0 #TODO
-                padded_sentences[i,j] = sentence[:sentence_length] + [stop_symbol]*(max_sentence_length-sentence_length)
+                pad_symbol = 2 #TODO
+                padded_sentences[i,j] = sentence[:sentence_length] + [pad_symbol]*(max_sentence_length-sentence_length)
                 sentence_lengths[i,j] = sentence_length
         return padded_sentences, sentence_lengths
 
