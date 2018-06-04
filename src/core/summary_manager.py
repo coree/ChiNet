@@ -216,3 +216,13 @@ class SummaryManager(object):
         """Log summary of scalar."""
         operation = tf.summary.scalar(name, tensor, **kwargs)
         self._register_cheap_op(operation)
+
+
+def summary_clean(summary_ops, substring):
+    to_clean = []
+    for key_1, cases in summary_ops.items():
+        for key_2 in cases.keys():
+            if substring not in key_2.lower():
+                to_clean.append((key_1, key_2))
+    for i, j in to_clean:
+        del summary_ops[i][j]

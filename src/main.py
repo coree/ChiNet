@@ -7,6 +7,7 @@ import tensorflow as tf
 import logging
 logger = logging.getLogger(__name__)
 
+from tensorflow.python import debug as tf_debug
 
 if __name__ == '__main__':
 
@@ -23,12 +24,17 @@ if __name__ == '__main__':
     logging.basicConfig(level=args.v.upper())
 
     # Initialize Tensorflow session
-    tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.set_verbosity(args.v.upper())
     gpu_options = tf.GPUOptions(allow_growth=True)
-    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as session:
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    # sess = tf_debug.LocalCLIDebugWrapperSession(sess) # -> For debugging
+
+    with sess as session:  # tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as session:
+        # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+
         logger.info('Initialize tensorflow session')
         # Declare some parameters
-        batch_size = 2 # TODO See how to implement placeholders of non-constant size, or how to pad imput to fit placeholder
+        batch_size = 2 # TODO See how to implement placeholders of non-constant size, or how to pad input to fit placeholder
 
         # Define model
         from datasources import TextSource
@@ -51,7 +57,7 @@ if __name__ == '__main__':
             learning_schedule=[   # TODO: Implemet this in a nice and global way
                 {
                     'loss_terms_to_optimize': {
-                        'pretrain_generator_loss': 'ALL',
+                        'pretrain_loss': 'ALL',
                         'generator_loss': 'ALL',
                         'discriminator_loss': 'ALL'
                     },

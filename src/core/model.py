@@ -1,6 +1,8 @@
 """Base model class for Tensorflow-based model construction."""
 from datasources import TextSource
 from util.preprocessor import load_vocab
+from .summary_manager import summary_clean
+
 import os
 import time
 from typing import Any, Dict, List
@@ -111,8 +113,8 @@ class BaseModel(object):
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
             self.inputs[mode] = inputs
-            # logger.debug(' [*] Model interfacers: \n - output : {}\ - loss_terms : {}\n - metrics : {}\n - inputs : {}'.format(
-            #                                     self.output_tensors, self.loss_terms, self.metrics, self.inputs ))
+            logger.debug(' [*] Model interfacers: \n - output : {}\n - loss_terms : {}\n - metrics : {}\n - inputs : {}'.format(
+                                                self.output_tensors, self.loss_terms, self.metrics, self.inputs ))
 
             # Create summaries for scalars
             if mode == 'train':
@@ -171,7 +173,7 @@ class BaseModel(object):
                     assert loss_term_key in self.loss_terms['train'].keys()
                     logger.debug('Prefixes : {}'.format(prefixes))
                     if prefixes == 'ALL':
-                        logger.info('Training all trainable variables')
+                        logger.info('{} -> Training all trainable variables'.format(loss_term_key))
                         variables_to_train = [v for v in all_trainable_variables]
                     else:
                         variables_to_train = []
@@ -182,9 +184,8 @@ class BaseModel(object):
                             ]
                     logger.debug(' Variables to train : {}'.format(variables_to_train))
                 except:
-                    logger.error('Obvious fail with {}'.format(loss_term_key))
+                    raise NameError('Obvious fail building {}'.format(loss_term_key))
                 
-                logger.critical(loss_term_key)
                 optimize_op = tf.train.AdamOptimizer(
                     learning_rate=spec['learning_rate'],
                     # beta1=0.9,
@@ -197,13 +198,12 @@ class BaseModel(object):
                 optimize_ops.append(optimize_op)
             self._optimize_ops.append(optimize_ops)
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
-        logger.error('Optimizer ops (size {}): {}'.format(len(self._optimize_ops), self._optimize_ops))
 
-    #load embeddings from file and call embedding matrix assign op
+
+    # Load embeddings from file and call embedding matrix assign op
     def load_embeddings(self, path, vocab_size=25000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
 
-        logger.info("Loading external embeddings from %s" % path)
-
+        logger.info("Loading external embeddings from {}".format(path))
 
         _, vocab = load_vocab()  # Retrieve just word id
         if not len(vocab) == vocab_size:
@@ -212,7 +212,7 @@ class BaseModel(object):
         model = models.KeyedVectors.load_word2vec_format(path, binary=binary)  
 
         embedding_size = model.vector_size  # Embedding size given by the loaded module
-        logger.info("Embedding size of {}".format)
+        logger.info("Embedding size of {}".format(embedding_size))
 
         external_embedding = np.zeros(shape=(vocab_size, embedding_size))
 
@@ -268,27 +268,25 @@ class BaseModel(object):
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 
-            logger.debug(feed_dict)
-
             fetches = {}
             fetches['optimize_ops'] = self._optimize_ops[0][0]  # TODO Really ugly fix
 
             summary_ops = self.summary.get_ops(mode='train')
             if len(summary_ops) > 0:
                 fetches['summaries'] = summary_ops
-
+                
+            self.time.start('pretrain_iteration', average_over_last_n_timings=100)
             outcome = self._tensorflow_session.run(
-                fetches=self.output_tensors['train']["pretrain_generator_loss"],
+                fetches=self.output_tensors['train']["pretrain_loss"],
                 feed_dict=feed_dict
             )
-
-            self.time.end('train_iteration')
+            self.time.end('pretrain_iteration')
 
             # Print progress
             to_print = '%07d> ' % current_step
             # to_print += ', '.join(['%s = %f' % (k, v)
             #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
-            self.time.log_every('train_iteration', to_print, seconds=2)
+            self.time.log_every('pretrain_iteration', to_print, seconds=2)
 
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:
@@ -341,7 +339,7 @@ class BaseModel(object):
         
         logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
-
+            self.time.start('train_iteration', average_over_last_n_timings=100)
             discriminator_losses = []
             #discriminator training
             for substep in range(num_steps_discriminator):
@@ -349,9 +347,13 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
-                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                #if len(summary_ops) > 0:
-                #    fetches['summaries'] = summary_ops
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                logger.debug(summary_ops)
+                summary_clean(summary_ops, 'discriminator') 
+                logger.critical('Discriminator {} {}'.format(substep, summary_ops))
+
+                if len(summary_ops) > 0:
+                   fetches['summaries'] = summary_ops
                 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -370,13 +372,18 @@ class BaseModel(object):
             
             generator_losses = []
             #generator training
-            for substep in range(0): #num_steps_generator): -> Commented out for debbuging porpuses
+            for substep in range(num_steps_generator):
                 fetches = {} 
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
-                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                #if len(summary_ops) > 0:
-                #    fetches['summaries'] = summary_ops
+
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                logger.debug(summary_ops)
+                summary_clean(summary_ops, 'discriminator') 
+                logger.error('Generator {} {}'.format(substep, summary_ops))
+                if len(summary_ops) > 0:
+                   fetches['summaries'] = summary_ops
+                logger.error(summary_ops)
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -391,30 +398,22 @@ class BaseModel(object):
                 )
 
                 generator_losses += [outcome['losses']]
-            lsp = self._tensorflow_session.run([self.loss_terms['train']['generator_loss']], feed_dict=feed_dict)
-            logger.critical(lsp)
-            logger.warning(self._optimize_ops)
-            logger.warning(self._optimize_ops[0][1])
-            logger.error(self.loss_terms['train']['generator_loss'])
-            logger.error(outcome)
-            input('Stopped here')
-
             generator_loss = np.mean(generator_losses)
             
             #update num_steps_discriminator and num_steps_generator
-            loss_ratio = discriminator_loss / generator_loss
-            logger.error("Loss ratio terms",loss_ratio, discriminator_loss, generator_loss)
+            loss_ratio = discriminator_loss / generator_loss 
             num_steps_discriminator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
             num_steps_generator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
- 
+            
             self.time.end('train_iteration')
 
             # Print progress
             to_print = '%07d> ' % current_step
-            to_print += ', '.join(['%s = %f' % (k, v)
-                                   for k, v in zip(loss_term_keys, outcome['loss_terms'])])
-            self.time.log_every('train_iteration', to_print, seconds=2)
+            to_print += 'Gen loss = {} -- Discr loss = {} '.format(generator_loss, discriminator_loss)
+            self.time.log_every('train_iteration', to_print, seconds=0.5)
 
+            logger.debug('Gen loss: {}  -- Discr loss: {}  || (Ratio {}) Steps: G {} - D {}'.format(
+                            generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator))
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:
                 self._tester.trigger_test_if_not_testing(current_step)
