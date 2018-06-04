@@ -32,14 +32,21 @@ def score(document_state, target_sentence_state):
 def gumbel_softmax(generator_state, config):
     with tf.variable_scope("generator", reuse=True):
         generator_to_embedding_weights = tf.get_variable("generator_to_embedding_weights")
-        temperature_weights = tf.get_variable("temperature_weights")
-        temperature_epsilon = tf.get_variable("temperature_epsilon")
+        temperature_weights = tf.clip_by_value(  # KIDS DON'T DO THIS AT HOME
+                                        tf.get_variable("temperature_weights"),
+                                        clip_value_min=1e-10,
+                                        clip_value_max=0.999)
+        temperature_epsilon = tf.clip_by_value(
+                                        tf.get_variable("temperature_epsilon"),
+                                        clip_value_min=1e-10,
+                                        clip_value_max=0.999)
+        temperature_epsilon = tf.Print(temperature_epsilon, [temperature_epsilon, temperature_weights])
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
 
     gumbel_pi = tf.nn.softmax(tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)))
     gumbel_t = tf.nn.relu(tf.matmul(generator_state, temperature_weights)) + temperature_epsilon
-    gumbel_u = tf.random_uniform(shape=[config['batch_size'],config['vocab_size']], minval=0.0, maxval=1.0)
+    gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
     gumbel_g = -tf.log(-tf.log(gumbel_u))
     #TODO clip t
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
@@ -70,7 +77,7 @@ def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, c
     generated_sentence_length_list = [tf.fill(dims=[], value=config['max_sentence_length'])]*config['batch_size']
 
     generated_word = initial_word
-    generator_state = generator_conditioners #TODO tuple?
+    generator_state = generator_conditioners  # TODO tuple?
     for i in range(config['max_sentence_length']):
         _, generator_state = generator_rnn_cell(generated_word, generator_state, scope="generator")
         generated_word, stop_word_probability = gumbel_softmax(generator_state=generator_state, config=config)
@@ -152,7 +159,7 @@ class CGAN(BaseModel):
             generator_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['generator_hidden_size'], activation=config['rnn_activation'], name="generator_cell")
             generator_to_embedding_weights = tf.get_variable(name="generator_to_embedding_weights", shape=[config['generator_hidden_size'], config['embedding_size']], dtype=tf.float32, initializer=config['initializer'])
             temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32, initializer=config['initializer']) 
-            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(1e-20), dtype=tf.float32) #TODO can float32 contain 1e-20? 
+            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(0.01), dtype=tf.float32) #TODO can float32 contain 1e-20? 
 
         #GRAPHS 
         #Generator pretraining
@@ -166,43 +173,45 @@ class CGAN(BaseModel):
         pretrain_generator_loss = tf.reduce_sum(-cosine_similarity(target_state, generated_state))
 
         #Generator
-        sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
-        input_states = sentence_states[:,:config['input_sentence_n']]
-        target_state = sentence_states[:,config['input_sentence_n']]
-        
-        input_states_attention = input_states #TODO attention; use attention (introduces information about target) when generating sentence?
+        with tf.name_scope('generator'):
+            sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
+            input_states = sentence_states[:,:config['input_sentence_n']]
+            target_state = sentence_states[:,config['input_sentence_n']]
+            
+            input_states_attention = input_states #TODO attention; use attention (introduces information about target) when generating sentence?
 
-        initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
-        document_state = tf.Print(document_state, [document_state], '\n - Document state: ')
-        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
-        generated_sentence = tf.Print(generated_sentence, [generated_sentence], '* Generated sentence: ')
-        initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
-    
-        score_generated = score(document_state, generated_state) 
-        score_generated = tf.Print(score_generated, [score_generated, document_state, generated_state], '* Score generated: ')
-        generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state)) #TODO minus similarity? (paper says otherwise but I think it's typo)
+            initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
+
+            generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
+
+            initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+            _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
+        
+            score_generated = score(document_state, generated_state) 
+
+            generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state)) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
         #Discriminator
-        sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
-        input_states = sentence_states[:,:config['input_sentence_n']]
-        target_state = sentence_states[:,config['input_sentence_n']]
+        with tf.name_scope('discriminator'):
+            sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
+            input_states = sentence_states[:,:config['input_sentence_n']]
+            target_state = sentence_states[:,config['input_sentence_n']]
+                
+            input_states_attention = input_states #TODO attention; repeat document state twice for target and generated attention?
             
-        input_states_attention = input_states #TODO attention; repeat document state twice for target and generated attention?
-           
-        initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
+            initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
 
-        generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
+            generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
 
-        initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
-            
-        score_generated = score(document_state, generated_state)
-        score_target = score(document_state, target_state)
+            initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+            _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
+                
+            score_generated = score(document_state, generated_state)
+            score_target = score(document_state, target_state)
 
-        discriminator_loss = tf.reduce_sum(-tf.log(score_target) - tf.log(1-score_generated))
+            discriminator_loss = tf.reduce_sum(-tf.log(score_target) - tf.log(1-score_generated))
 
         #Prediction
         sentences_with_extra = tf.concat([sentences, extra_sentence], axis=1)
@@ -230,7 +239,7 @@ class CGAN(BaseModel):
         logger.info('Model {} building exiting.'.format(__name__))
 
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
-                {"pretrain_generator_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
+                {"pretrain_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics
                 {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length,
                     "word2vec_weights": word2vec_weights}  #input
