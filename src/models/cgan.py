@@ -56,12 +56,15 @@ def generate_sentence(document_state, generator_rnn_cell, config, conditional=Tr
         stop_word_error_bound = tf.get_variable("stop_word_error_bound")
          
     #condition on input document state depending on parameter
-    random_seed = tf.random_normal([config['batch_size'],1]) #TODO change random seed every step? instead distort document state?
+    random_seed = tf.random_normal([config['batch_size'], 1]) #TODO change random seed every step? instead distort document state?
+    random_seed = tf.Print(random_seed, [random_seed], 'Random seed: ')
+    # document_state = tf.Print(document_state, [document_state], 'Documetn state: ')  # Fails 'cus doc_state is none?
     if conditional:
         generator_conditioners = tf.concat([document_state, random_seed], axis=1)
+        generator_conditioners = tf.Print(generator_conditioners, [generator_conditioners], 'Generator_conditioners (Is conditional): ')
     else:
-        generator_conditioners = tf.concat([random_seed]*(config['document_hidden_size']+1), axis=1) #must have same shape as when conditioning on document
-
+        generator_conditioners = tf.concat([random_seed]*(config['document_hidden_size']+1), axis=1)  #must have same shape as when conditioning on document
+        generator_conditioners = tf.Print(generator_conditioners, [generator_conditioners], 'Generator_conditioners (non conditional): ')
     initial_word = tf.stack([embedded_start_word]*config['batch_size'], axis=0) #first word seen by generator
 
     #generate max_sentence_length words
@@ -69,10 +72,12 @@ def generate_sentence(document_state, generator_rnn_cell, config, conditional=Tr
     generated_sentence_length_list = [tf.fill(dims=[], value=config['max_sentence_length'])]*config['batch_size']
 
     generator_input = tf.concat([initial_word, generator_conditioners], axis=1) 
+    generator_input = tf.Print(generator_input, [generator_input], 'Generator_input: ', summarize=1000000)
     generator_state = generator_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+    generator_state = tf.Print(generator_state, [generator_state], 'Generator state w0: ', summarize=1000000)
     for i in range(config['max_sentence_length']):
         _, generator_state = generator_rnn_cell(generator_input, generator_state, scope="generator")
-
+        generator_state = tf.Print(generator_state, [generator_state], 'Generator state w{}: '.format(i))
         #determine generated word (embedded) from generator state 
         generated_word = gumbel_softmax(generator_state=generator_state, config=config)
 
@@ -180,13 +185,14 @@ class CGAN(BaseModel):
 
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
-
+        document_state = tf.Print(document_state, [document_state], '\n - Document state: ')
         generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, config=config)
-
+        generated_sentence = tf.Print(generated_sentence, [generated_sentence], '* Generated sentence: ')
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
     
         score_generated = score(document_state, generated_state) 
+        score_generated = tf.Print(score_generated, [score_generated, document_state, generated_state], '* Score generated: ')
         generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state)) #TODO minus similarity? (paper says otherwise but I think it's typo)
 
         #Discriminator

@@ -370,7 +370,7 @@ class BaseModel(object):
             
             generator_losses = []
             #generator training
-            for substep in range(num_steps_generator):
+            for substep in range(0): #num_steps_generator): -> Commented out for debbuging porpuses
                 fetches = {} 
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
@@ -391,6 +391,14 @@ class BaseModel(object):
                 )
 
                 generator_losses += [outcome['losses']]
+            lsp = self._tensorflow_session.run([self.loss_terms['train']['generator_loss']], feed_dict=feed_dict)
+            logger.critical(lsp)
+            logger.warning(self._optimize_ops)
+            logger.warning(self._optimize_ops[0][1])
+            logger.error(self.loss_terms['train']['generator_loss'])
+            logger.error(outcome)
+            input('Stopped here')
+
             generator_loss = np.mean(generator_losses)
             
             #update num_steps_discriminator and num_steps_generator
