@@ -39,10 +39,12 @@ def gumbel_softmax(generator_state, config):
 
     gumbel_pi = tf.nn.softmax(tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)))
     gumbel_t = tf.nn.relu(tf.matmul(generator_state, temperature_weights)) + temperature_epsilon
-    gumbel_u = tf.random_normal([config['batch_size'],1]) #TODO sample for every vocab word?
+    gumbel_u = tf.random_uniform(shape=[config['batch_size'],config['vocab_size']], minval=0.0, maxval=1.0)
     gumbel_g = -tf.log(-tf.log(gumbel_u))
+    #TODO clip t
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
-    gumbel_y = tf.matmul(gumbel_p, embedding_weights)
+    #TODO not sure if gumbel_y is correct...
+    gumbel_y = tf.matmul(gumbel_p, embedding_weights) 
     
     return gumbel_y, gumbel_pi[:,config['stop_word_index']]
 
@@ -149,7 +151,7 @@ class CGAN(BaseModel):
         with tf.variable_scope('generator'):
             generator_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['generator_hidden_size'], activation=config['rnn_activation'], name="generator_cell")
             generator_to_embedding_weights = tf.get_variable(name="generator_to_embedding_weights", shape=[config['generator_hidden_size'], config['embedding_size']], dtype=tf.float32, initializer=config['initializer'])
-            temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32) 
+            temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32, initializer=config['initializer']) 
             temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(1e-20), dtype=tf.float32) #TODO can float32 contain 1e-20? 
 
         #GRAPHS 
