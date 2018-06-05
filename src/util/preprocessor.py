@@ -49,10 +49,10 @@ def make_vocab(vocab, vocab_size):
 
     # build dictonary of word to ids
     word_id = {word: i for i, word in enumerate(known_words, 4)}
-    word_id["<bos>"] = 0
-    word_id["<eos>"] = 1
-    word_id["<pad>"] = 2
-    word_id["<unk>"] = 3
+    word_id["BOS"] = 0
+    word_id["EOS"] = 1
+    word_id["PAD"] = 2
+    word_id["UNK"] = 3
 
     id_word = dict(zip(word_id.values(), word_id.keys()))  # reverse dict to get word from id
     # write to pickle
