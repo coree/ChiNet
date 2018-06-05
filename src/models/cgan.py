@@ -85,7 +85,6 @@ def gumbel_softmax_test(logits, config):
 def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, config, conditional=True):
     with tf.variable_scope("generator", reuse=True):
         generator_to_embedding_weights = tf.get_variable("generator_to_embedding_weights")
-    with tf.variable_scope("document", reuse=True):
         document_to_generator_weights = tf.get_variable("document_to_generator_weights")
 
     #condition on input document state depending on parameter
@@ -211,6 +210,8 @@ class CGAN(BaseModel):
         with tf.variable_scope('document'):
             document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['document_hidden_size'], activation=config['rnn_activation'], name="document_cell")
             document_to_sentence_weights = tf.get_variable(name="document_to_sentence_weights", shape=[config['document_hidden_size'], config['sentence_hidden_size']], dtype=tf.float32, initializer=config['initializer'])
+
+        with tf.variable_scope('generator'):
             document_to_generator_weights = tf.get_variable(name="document_to_generator_weights", shape=[config['document_hidden_size'], config['generator_hidden_size']], dtype=tf.float32, initializer=config['initializer'])
 
         with tf.variable_scope('generator'):
@@ -297,7 +298,7 @@ class CGAN(BaseModel):
             
         score_target_1 = score(document_state_1, target_1_state)
         score_target_2 = score(document_state_2, target_2_state)
-            
+
         #predicted ending is 0 for ending_1 and 1 for ending_2 (extra target)
         predicted_ending_list = []
         for i in range(config['batch_size']):
