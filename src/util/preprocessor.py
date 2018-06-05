@@ -6,7 +6,13 @@ import os
 import pickle
 import time
 import logging
+import random
 logger = logging.getLogger(__name__)
+
+MALE_NAMES = names.words('male.txt')
+FEMALE_NAMES = names.words('female.txt')
+MALES = ['John','Adrian','Shane','Michael','Philip', 'Ethan', 'Xavier', 'Evan', 'Ralph','Frank']
+FEMALES = ['Charlotte','Vicki','Monica','Jana','Elisa', 'Madonna','Sophia','Lauren','Jackie','Viola']
 
 #write vocabulary to file
 def write_vocab(id_word, word_id):
@@ -62,7 +68,7 @@ def make_vocab(vocab, vocab_size):
 
 # TODO: Dehumanyfy function is extremely time inefficient (could be much more optimized)
 # TODO: Check if sex may give any source of extra information (which I doubt, tho)
-def dehumanify(sentence):  
+def dehumanify(story):
     """
     Just as it says, people are not names, they are just another numbered blorg! 
             (culture yourselves [ https://preview.tinyurl.com/greatBlorg ] [ /watch?v=-FwnxRiozyU ])
@@ -75,12 +81,34 @@ def dehumanify(sentence):
     (In a more serious context, we replace proper names with a stereotypical string in order to reduce 
      the vocabulary size, delete unnecesary information and (probably) improve the model. ) 
     """
-    worthless_subject = 1  # We have to be consistent, plz
-    proper_names = names.words()
-    for idx, token in enumerate(sentence):
-        if token in proper_names:
-            sentence[idx] = 'friendly_blorg_{}'.format(worthless_subject)
-            worthless_subject += 1
+    random.shuffle(MALES)
+    random.shuffle(FEMALES)
+    male_counter = 0
+    female_counter = 0
+    names_dict = {}
+    sentences = []
+
+    for sent in story:
+        sentence = nltk.word_tokenize(str(sent))
+        for idx, word in enumerate(sentence):
+            if word in MALE_NAMES:
+                if word not in list(names_dict.keys()):
+                    names_dict[word] = male_counter
+                    sentence[idx] = MALES[male_counter]
+                    male_counter += 1
+                else:
+                    sentence[idx] = MALES[names_dict[word]]
+
+            elif word in FEMALE_NAMES:
+                if word not in list(names_dict.keys()):
+                    names_dict[word] = female_counter
+                    sentence[idx] = FEMALES[female_counter]
+                    female_counter += 1
+                else:
+                    sentence[idx] = FEMALES[names_dict[word]]
+                    
+        sentences.append(sentence)
+    return sentences
 
 def preprocess_file(file_path='../datasets/train_stories.csv', 
                          clean_file='../datasets/train_stories.clean'):
@@ -112,10 +140,12 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     start_time = time.time()
     for progress, block in enumerate(raw):
         story =[]
-        for line in block: 
-            tokens = nltk.word_tokenize(str(line))
+        #TODO dehumanify(block)
+        dehumanized_block = dehumanify(block)
+        for tokens in dehumanized_block:
+            #tokens = nltk.word_tokenize(str(line))
             sentence = []
-            dehumanify(tokens)  
+            #dehumanify(tokens)
             for token in tokens:
 
                 token = token.lower()
