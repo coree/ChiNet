@@ -143,11 +143,11 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     # exchanges words with ids and replaces words that are not in vocab with the id of unk
     for story in data:
         for sentence in story:
-            sentence = ['<bos>'] + sentence
-            sentence += ['<eos>']
+            sentence = ['BOS'] + sentence
+            sentence += ['EOS']
             for idx, word in enumerate(sentence):
                 if word not in known_words:
-                    sentence[idx] = word_id['<unk>']
+                    sentence[idx] = word_id['UNK']
                 else:
                     sentence[idx] = word_id[word]
 
