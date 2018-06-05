@@ -136,6 +136,18 @@ def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, c
 
     return generated_sentence, generated_sentence_length
 
+#given 
+def apply_attention(input_states, target_state, config):
+    with tf.variable_scope("attention", reuse=True):
+        attention_matrix = tf.get_variable("attention_matrix")
+
+    input_states_attention_list = []
+    for i in range(config['input_sentence_n']):
+        attention_factor = tf.nn.sigmoid(tf.squeeze(tf.matmul(tf.expand_dims(tf.matmul(target_state, attention_matrix), axis=1), tf.expand_dims(input_states[:,i], axis=2)), axis=-1))
+        input_states_attention_list += [attention_factor*input_states[:,i]]
+    input_states_attention = tf.stack(input_states_attention_list, axis=1)
+    return input_states_attention
+
 #given sentences with one-hot vocabulary indices, apply embeddings and sentence rnn to get sentence representations
 def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_cell, sentence_n, config): #TODO sentence rnn cell through get_variables?
     with tf.variable_scope("embedding", reuse=True):
@@ -190,8 +202,12 @@ class CGAN(BaseModel):
         with tf.variable_scope('sentence'):
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['sentence_hidden_size'], activation=config['rnn_activation'], name="sentence_cell")
         
-        #TODO attention
-        
+        #TODO attention matrix unnecessary since applied to sentences in same space?
+        with tf.variable_scope("attention"):
+            attention_matrix = tf.get_variable(name="attention_matrix", shape=[config['sentence_hidden_size'], config['sentence_hidden_size']], dtype=tf.float32)
+            #commented out attention matrix below should provide easy way of doing attention without attention matrix (untested)
+            #attention_matrix = tf.get_variable(name="attention_matrix", initializer=tf.constant_initializer(np.eye(config['sentence_hidden_size'])))
+
         with tf.variable_scope('document'):
             document_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['document_hidden_size'], activation=config['rnn_activation'], name="document_cell")
             document_to_sentence_weights = tf.get_variable(name="document_to_sentence_weights", shape=[config['document_hidden_size'], config['sentence_hidden_size']], dtype=tf.float32, initializer=config['initializer'])
@@ -223,11 +239,9 @@ class CGAN(BaseModel):
             input_states = sentence_states[:,:config['input_sentence_n']]
             target_state = sentence_states[:,config['input_sentence_n']]
             
-            input_states_attention = input_states #TODO attention; use attention (introduces information about target) when generating sentence?
-
             initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
-
+            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states, initial_state=initial_state, dtype=tf.float32, scope="document")
+            
             generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
 
             initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
@@ -235,18 +249,22 @@ class CGAN(BaseModel):
         
             score_generated = score(document_state, generated_state) 
 
-            generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state)) #TODO minus similarity? (paper says otherwise but I think it's typo)
+            #generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state))
+            generator_loss = tf.reduce_sum(-tf.log(score_generated))
 
         #Discriminator
         with tf.name_scope('discriminator'):
             sentence_states = apply_embedding_and_sentence_rnn(sentences=sentences, sentence_lengths=sentence_lengths, sentence_rnn_cell=sentence_rnn_cell, sentence_n=config['input_sentence_n']+1, config=config)
             input_states = sentence_states[:,:config['input_sentence_n']]
             target_state = sentence_states[:,config['input_sentence_n']]
-                
-            input_states_attention = input_states #TODO attention; repeat document state twice for target and generated attention?
             
+            input_states_attention = apply_attention(input_states, target_state, config) 
             initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
+            _, document_state_attention = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
+            
+            #we want document state for generation without attention so it is target independent
+            initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+            _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states, initial_state=initial_state, dtype=tf.float32, scope="document")
 
             generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
 
@@ -254,7 +272,7 @@ class CGAN(BaseModel):
             _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
                 
             score_generated = score(document_state, generated_state)
-            score_target = score(document_state, target_state)
+            score_target = score(document_state_attention, target_state)
 
             discriminator_loss = tf.reduce_sum(-tf.log(score_target) - tf.log(1-score_generated))
 
@@ -266,14 +284,19 @@ class CGAN(BaseModel):
         input_states = sentence_states[:,:config['input_sentence_n']]
         target_1_state = sentence_states[:,config['input_sentence_n']]
         target_2_state = sentence_states[:,config['input_sentence_n']+1]
-           
-        #TODO attention; 2 separate document states based on attention?
-           
+          
+        #we must calculate separate document states due to attention
+        input_states_attention_1 = apply_attention(input_states, target_1_state, config)
+        input_states_attention_2 = apply_attention(input_states, target_2_state, config)
+        
         initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention, initial_state=initial_state, dtype=tf.float32, scope="document")
+        _, document_state_1 = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention_1, initial_state=initial_state, dtype=tf.float32, scope="document")
+        
+        initial_state = document_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+        _, document_state_2 = tf.nn.dynamic_rnn(document_rnn_cell, input_states_attention_2, initial_state=initial_state, dtype=tf.float32, scope="document")
             
-        score_target_1 = score(document_state, target_1_state)
-        score_target_2 = score(document_state, target_2_state)
+        score_target_1 = score(document_state_1, target_1_state)
+        score_target_2 = score(document_state_2, target_2_state)
             
         #predicted ending is 0 for ending_1 and 1 for ending_2 (extra target)
         predicted_ending_list = []
