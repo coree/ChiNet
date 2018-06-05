@@ -30,6 +30,10 @@ class TextSource(object):
         if not os.path.exists(self._data_file) or override_file:
             self.preprocess(file_path, self._sentences_file)
 
+        a_vocab_dict, _ = coree.load_vocab()
+        if not len(a_vocab_dict) == self.vocab_size:
+            logger.warning('Vocab size set to {} instead of {}'.format(len(a_vocab_dict), self.vocab_size))
+            self.vocab_size = len(a_vocab_dict)
         # Open clean data file
         logger.info('Loading data from {}'.format(self._data_file))
         data = coree.load_preprocessed_data(self._data_file)
