@@ -15,7 +15,7 @@ def cosine_similarity(x, y):
     """Computes the cosine similarity between x and y"""
     x = tf.nn.l2_normalize(x, 1)  
     y = tf.nn.l2_normalize(y, 1)
-    return 1 - tf.losses.cosine_distance(x, y, axis=1)
+    return tf.matmul(tf.expand_dims(x, axis=1), tf.expand_dims(y, axis=2))
 
 #discrimiantor score from input document state and target sentence state
 def score(document_state, target_sentence_state):
