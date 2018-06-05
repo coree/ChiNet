@@ -29,7 +29,7 @@ def score(document_state, target_sentence_state):
     return tf.squeeze(score_sigmoid) #squeeze removes 1x1 dimension at end
 
 #TODO matrix operation version of Gumbel softmax could be breaking everything
-def gumbel_softmax(generator_state, config):
+def gumbel_softmax_original(generator_state, config):
     with tf.variable_scope("generator", reuse=True):
         generator_to_embedding_weights = tf.get_variable("generator_to_embedding_weights")
         temperature_weights = tf.clip_by_value(  # KIDS DON'T DO THIS AT HOME
@@ -40,6 +40,7 @@ def gumbel_softmax(generator_state, config):
                                         tf.get_variable("temperature_epsilon"),
                                         clip_value_min=1e-10,
                                         clip_value_max=0.999)
+
         temperature_epsilon = tf.Print(temperature_epsilon, [temperature_epsilon, temperature_weights])
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
@@ -51,9 +52,39 @@ def gumbel_softmax(generator_state, config):
     #TODO clip t
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
     #TODO not sure if gumbel_y is correct...
-    gumbel_y = tf.matmul(gumbel_p, embedding_weights) 
+    gumbel_y = tf.matmul(gumbel_p, embedding_weights)
     
-    return gumbel_y, gumbel_pi[:,config['stop_word_index']]
+    return gumbel_y, gumbel_pi[:, config['stop_word_index']]
+
+
+def gumbel_softmax(logits, config):
+    epsilon = 1e-20  # Avoid crashing when log()
+
+    '''   As apparently we (at least I) are not able to keep the temperature at a reasonable value (aka non-nan), 
+     I wonder if aren't we able to use just a single temperature for the whole distribution (I know it's 
+     different) from the paper but still... Also, I'm not confident of the "de-embeding part", but if the 
+     point of the Gumball softmax is to get rid of the argmax, why don't we apply the typical approach for
+     word classification and just relax the argmax, so getting rid of the weird "getting from generator space
+     to the embedding space", and just avoid it. In any case, I left the original function up there, in case.'''
+    # TODO: On how to set the temperature, why don't we slowly reduce it every many ops. Imagine it as a ε-greedy 
+    # approach (which in part, kinda is).
+    temperature = 0.001  # Arbitrarily choosen atm
+
+    gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
+    gumbel_u = -tf.log(-tf.log(gumbel_u + epsilon) + epsilon)
+
+    pi = logits + gumbel_u
+    softmax = tf.nn.softmax(pi / temperature)
+
+    ''' TODO NEED TO CHECK THE "HARD" FORMULATION/APPLICATION -> SHOUD RETURN ONE-HOT
+    hard_output = False
+    if hard_output:
+        k = tf.shape(logits)[-1]
+        #y_hard = tf.cast(tf.one_hot(tf.argmax(y,1),k), y.dtype)
+        hard_softmax = tf.cast(tf.equal(softmax, tf.reduce_max(softmax, 1, keep_dims=True)), softmax.dtype)
+        softmax = tf.stop_gradient(hard_softmax - softmax) + softmax
+    '''
+    return softmax
 
 #generator conditional sentence generation
 def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, config, conditional=True):
@@ -78,9 +109,23 @@ def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, c
 
     generated_word = initial_word
     generator_state = generator_conditioners  # TODO tuple?
+    with tf.variable_scope("embedding", reuse=True):
+        embedding_weights = tf.get_variable("embedding_weights")
+    
+    with tf.variable_scope("output_weights", reuse=True):
+        output_weights = tf.get_variable("output_weights", shape=[config['generator_hidden_size'], config['vocab_size']]) 
+
     for i in range(config['max_sentence_length']):
         _, generator_state = generator_rnn_cell(generated_word, generator_state, scope="generator")
-        generated_word, stop_word_probability = gumbel_softmax(generator_state=generator_state, config=config)
+        # generated_word, stop_word_probability = gumbel_softmax(generator_state=generator_state, config=config) -> PREVIOUS APPROACH | LIKELY THE CORRECT THING
+
+        #   OKAY THE FOLLOWING UPDATE IS MAYBE NOT GONNA WORK, you can see the rationale for it up there. Also, there are many other papers that use
+        # Gumbel without actually really doing Chinese et al. convoluted stuff
+        # word_probabilities = tf.nn.softmax( tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)  )) # -> KEEPING THE LINE OF THE ARTICLE
+        word_probabilities = tf.nn.softmax( tf.matmul(generator_state, output_weights))  # -> WHY NOT SOMETHING ON THIS LINE
+        stop_word_probability = word_probabilities[:, config['stop_word_index']]
+        generated_word  = gumbel_softmax(word_probabilities, config=config)
+        generated_word = tf.matmul(generated_word, embedding_weights)
 
         #set sequence length to min(sequence_length, i) if stop word was generated
         for j in range(config['batch_size']):
@@ -160,6 +205,9 @@ class CGAN(BaseModel):
             generator_to_embedding_weights = tf.get_variable(name="generator_to_embedding_weights", shape=[config['generator_hidden_size'], config['embedding_size']], dtype=tf.float32, initializer=config['initializer'])
             temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32, initializer=config['initializer']) 
             temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(0.01), dtype=tf.float32) #TODO can float32 contain 1e-20? 
+
+        with tf.variable_scope("output_weights"):
+            output_weights = tf.get_variable("output_weights", shape=[config['generator_hidden_size'], config['vocab_size']]) 
 
         #GRAPHS 
         #Generator pretraining
