@@ -157,7 +157,7 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
             story.append(sentence)
         if not (progress+1) % 1000:
             t = (len(raw)-progress)*(time.time()-start_time)/progress
-            logger.info(' Estimated completion in {0:.0f}:{1:.0f} min  - Actual completion {2}/{3} stories)'.format(
+            logger.info(' Estimated completion in {0:.0f}:{1:02.0f} min  - Actual completion {2}/{3} stories)'.format(
                                                         t//60,  t%60,  # min, sec 
                                                         progress + 1, 
                                                         len(raw)))
@@ -172,15 +172,14 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     # exchanges words with ids and replaces words that are not in vocab with the id of unk
     for story in data:
         for sentence in story:
-            sentence = ['BOS'] + sentence
-            sentence += ['EOS']
-            for idx, word in enumerate(sentence):
+            sentence_ = ['BOS'] + sentence
+            sentence_ += ['EOS']
+            for idx, word in enumerate(sentence_):
                 if word not in known_words:
-                    sentence[idx] = word_id['UNK']
+                    sentence_[idx] = word_id['UNK']
                 else:
-                    sentence[idx] = word_id[word]
-
+                    sentence_[idx] = word_id[word]
+            sentence = sentence_
     if write:
         write_processed_data(data)
-
     return data, word_id, id_word
