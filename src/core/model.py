@@ -397,8 +397,8 @@ class BaseModel(object):
             
             #update num_steps_discriminator and num_steps_generator
             loss_ratio = discriminator_loss / generator_loss 
-            num_steps_discriminator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
-            num_steps_generator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
+            num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
+            num_steps_generator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
             
             self.time.end('train_iteration')
 
