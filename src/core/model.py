@@ -348,9 +348,7 @@ class BaseModel(object):
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
                 summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                logger.debug(summary_ops)
                 summary_clean(summary_ops, 'discriminator') 
-                logger.critical('Discriminator {} {}'.format(substep, summary_ops))
 
                 if len(summary_ops) > 0:
                    fetches['summaries'] = summary_ops
@@ -378,12 +376,9 @@ class BaseModel(object):
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
                 summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
-                logger.debug(summary_ops)
                 summary_clean(summary_ops, 'discriminator') 
-                logger.error('Generator {} {}'.format(substep, summary_ops))
                 if len(summary_ops) > 0:
                    fetches['summaries'] = summary_ops
-                logger.error(summary_ops)
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -409,11 +404,10 @@ class BaseModel(object):
 
             # Print progress
             to_print = '%07d> ' % current_step
-            to_print += 'Gen loss = {} -- Discr loss = {} '.format(generator_loss, discriminator_loss)
+            to_print += 'Gen loss = {0:.4f} -- Discr loss = {1:.4f} || (Ratio {2:.4f}) Steps: G {3:03} - D {4:03}'.format(
+                            generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator)
             self.time.log_every('train_iteration', to_print, seconds=0.5)
 
-            logger.debug('Gen loss: {}  -- Discr loss: {}  || (Ratio {}) Steps: G {} - D {}'.format(
-                            generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator))
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:
                 self._tester.trigger_test_if_not_testing(current_step)
