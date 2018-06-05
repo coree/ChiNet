@@ -182,10 +182,10 @@ class BaseModel(object):
                                 v for v in all_trainable_variables
                                 if v.name.startswith(prefix)
                             ]
-                    logger.debug(' Variables to train : {}'.format(variables_to_train))
+                    logger.info(' Variables to train : {}'.format(variables_to_train))
                 except:
                     raise NameError('Obvious fail building {}'.format(loss_term_key))
-                
+
                 optimize_op = tf.train.AdamOptimizer(
                     learning_rate=spec['learning_rate'],
                     # beta1=0.9,

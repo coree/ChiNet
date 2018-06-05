@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Main script for training a model for gaze estimation."""
 import argparse
 
 import coloredlogs
@@ -34,7 +33,7 @@ if __name__ == '__main__':
 
         logger.info('Initialize tensorflow session')
         # Declare some parameters
-        batch_size = 2 # TODO See how to implement placeholders of non-constant size, or how to pad input to fit placeholder
+        batch_size = 2
 
         # Define model
         from datasources import TextSource
@@ -54,12 +53,12 @@ if __name__ == '__main__':
             #
             # The loss terms which can be specified depends on model specifications, specifically
             # the `loss_terms` output of `BaseModel::build_model`.
-            learning_schedule=[   # TODO: Implemet this in a nice and global way
+            learning_schedule=[
                 {
                     'loss_terms_to_optimize': {
                         'pretrain_loss': 'ALL',
-                        'generator_loss': 'ALL',
-                        'discriminator_loss': 'ALL'
+                        'generator_loss': 'generator',
+                        'discriminator_loss': {'document', 'sentence', 'discriminator'}
                     },
                     'metrics': ['kp_2D_mse'],
                     'learning_rate': 1e-4,
