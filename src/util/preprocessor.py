@@ -140,7 +140,6 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
     start_time = time.time()
     for progress, block in enumerate(raw):
         story =[]
-        #TODO dehumanify(block)
         dehumanized_block = dehumanify(block)
         for tokens in dehumanized_block:
             #tokens = nltk.word_tokenize(str(line))
