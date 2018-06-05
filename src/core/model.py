@@ -396,7 +396,8 @@ class BaseModel(object):
             generator_loss = np.mean(generator_losses)
             
             #update num_steps_discriminator and num_steps_generator
-            loss_ratio = discriminator_loss / generator_loss 
+            #clip losses to present negative losses messing up ratio
+            loss_ratio = np.clip(discriminator_loss, a_min=1e-20, a_max=None) / np.clip(generator_loss, a_min=1e-20, a_max=None)
             num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
             num_steps_generator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
             
