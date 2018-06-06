@@ -225,7 +225,7 @@ class BaseModel(object):
 
         if not non_included:
             logger.debug("Tokens not included: {}".format(non_included))
-            logger.warning('{} of {} tokens were not found in embedding fike'.format(len(non_included), vocab_size))
+            logger.warning('{} of {} tokens were not found in embedding file'.format(len(non_included), vocab_size))
 
         fetches = {}
         fetches['output_tensors'] = self.embedding_assign_op['train']  # ["embeding_assign_op"]
@@ -403,7 +403,7 @@ class BaseModel(object):
             
             #update num_steps_discriminator and num_steps_generator
             #clip losses to prevent negative losses messing up ratio
-            loss_ratio = np.clip(discriminator_loss, a_min=1e-20, a_max=None) / np.clip(generator_loss, a_min=1e-20, a_max=None)
+            loss_ratio = np.clip(discriminator_loss, a_min=1e-6, a_max=None) / np.clip(generator_loss, a_min=1e-6, a_max=None)
             num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), min_steps, max_steps))
             num_steps_generator = int(np.clip(initial_steps*loss_ratio, min_steps, max_steps))
             

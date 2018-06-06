@@ -56,12 +56,12 @@ if __name__ == '__main__':
             learning_schedule=[
                 {
                     'loss_terms_to_optimize': {
-                        'pretrain_loss': 'ALL',
-                        'generator_loss': 'generator',
-                        'discriminator_loss': {'document', 'sentence', 'discriminator'}
+                        'pretrain_loss': {'generator'},
+                        'generator_loss': {'generator'},
+                        'discriminator_loss': {'document', 'sentence', 'discriminator', 'attention'}
                     },
                     'metrics': ['kp_2D_mse'],
-                    'learning_rate': 1e-4,
+                    'learning_rate': 1e-3,
                 }
             ],
 
