@@ -5,8 +5,9 @@ import coloredlogs
 import tensorflow as tf
 import logging
 logger = logging.getLogger(__name__)
-
+import numpy as np
 from tensorflow.python import debug as tf_debug
+from util.preprocessor import load_results
 
 if __name__ == '__main__':
 
@@ -94,10 +95,16 @@ if __name__ == '__main__':
             num_epochs=0,
         )
 
-        model.evaluate(
+        predictions = model.evaluate(
             TextSource(
                     batch_size,
                     file_path='../datasets/cloze_test_val.csv',
                     testing=True,
                 )
         )
+
+        target = load_results()   
+        accuracy = 1 - (np.abs(np.array(target) - np.array(predictions)) / len(target))
+        logger.critical('***************************\n \
+                        ***\n                    ***  \
+                        ***  ACCURACY {}     ***'.format(accuracy))

@@ -126,6 +126,26 @@ def preprocess_file(file_path='../datasets/train_stories.csv',
         pickle.dump(data, f)
 
 
+def preprocess_results(file_path='../datasets/cloze_test_val.csv', 
+                         clean_file='../datasets/results.clean'):
+    """ Preprocess the csv into a pickled python list"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = list(csv.DictReader(f))
+    # Grab answers
+    data = [s['AnswerRightEnding'] for s in data] 
+
+    with open(clean_file, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def load_results(clean_file='../datasets/results.clean'):
+    if not os.path.exists(clean_file):
+        preprocess_results(clean_file=clean_file)
+        logger.info('Results file preprocessed')
+    with open(clean_file, 'rb', encoding='utf-8') as f:
+        data = pickle.load(f)
+    return data
+
 def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=25000, write=True):
     """ 
     Preprocess, tokenise and encode the data
