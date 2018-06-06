@@ -41,6 +41,31 @@ You can keep this short. Ideally you introduce the task already in a way that hi
 Your idea. You can rename this section if you like. Early on in this section -- but not necessarily first -- make clear what category your method falls into: Is it generative? Discriminative? Is there a particular additional data source you want to use?
 \section{Model}
 The math/architecture of your model. This should formally describe your idea from above. If you really want to, you can merge the two sections. \textbf{Xander is on this}
+
+We define our sentence RNN as
+$$ h^{s}_{i} = GRU(s_{i}; h^{s}_{i-1})$$
+where $s$ denotes the embedded sentence. We denote the final hidden state of the sentence RNN as $r^{s}$. \\
+We then define our document RNN as
+$$ h^{d}_{i} = GRU(r^{s}_{i}; h^{d}_{i-1}) $$
+and similarly denote the final hidden state of the document RNN as $r^{d}$. \\
+Attention is defined as
+$$ \tilde{r}^{s}_{i} = r^{s}_{t}W_{A}(r^{s}_{i})^{T} $$
+where $r^{s}_{t}$ denotes the target sentence and $W_{A}$ is the attention matrix. \\
+Now, we define our generator RNN as
+$$ h^{g}_{i} = GRU(y_{i}; h^{g}_{i-1}) $$
+where $y_{i}$ is the word generated at the previous time step. We initialize $y_{0}$ as the embedded <start> word. Unlike the sentence and document RNN, where the initial hidden states $h^{s}_{0}$ and $h^{d}_{0}$ are set to 0, we initialize our generator hidden state as
+$$ h^{g}_{0} = r^{d} + z $$
+$$ z \sim \mathcal{N}(0,1) $$
+We determine the generated word from the generator hidden state using the Gumbel-Softmax
+
+$$h->y.equation$$
+
+Our discriminator score is defined as 
+
+$$ D = \sigma(r^{d}W_{d \rightarrow s}(r^{s}_{t})^{T} )$$
+
+where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space and $\sigma$ is the sigmoid function.
+
 \section{Training}
 What is your objective? How do you optimize it?
 \textbf{Xander is on this}
