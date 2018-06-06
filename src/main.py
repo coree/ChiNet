@@ -103,8 +103,10 @@ if __name__ == '__main__':
                 )
         )
 
-        target = load_results()   
-        accuracy = 1 - (np.abs(np.array(target) - np.array(predictions)) / len(target))
+        target = load_results(overwrite=True)
+        print(target)
+        print(predictions)
+        accuracy = 1 - np.mean(np.abs(np.array(target) - np.array(predictions)))
         logger.critical('***************************\n \
                         ***\n                    ***  \
                         ***  ACCURACY {}     ***'.format(accuracy))

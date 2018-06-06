@@ -131,18 +131,18 @@ def preprocess_results(file_path='../datasets/cloze_test_val.csv',
     """ Preprocess the csv into a pickled python list"""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = list(csv.DictReader(f))
-    # Grab answers
-    data = [s['AnswerRightEnding'] for s in data] 
+    # Grab answers and process them
+    data = [int(s['AnswerRightEnding'])-1 for s in data] 
 
     with open(clean_file, 'wb') as f:
         pickle.dump(data, f)
 
 
-def load_results(clean_file='../datasets/results.clean'):
-    if not os.path.exists(clean_file):
+def load_results(clean_file='../datasets/results.clean', overwrite=False):
+    if not os.path.exists(clean_file) or overwrite:
         preprocess_results(clean_file=clean_file)
         logger.info('Results file preprocessed')
-    with open(clean_file, 'rb', encoding='utf-8') as f:
+    with open(clean_file, 'rb') as f:
         data = pickle.load(f)
     return data
 

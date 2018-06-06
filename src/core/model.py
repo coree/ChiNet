@@ -471,7 +471,6 @@ class BaseModel(object):
                 feed_dict = feed_dict
             )
             results.append(outcome)
-        results = np.array(results).flatten()
-        print(results)
+        results = np.array(results).flatten()[:data_source.len_data]
         return results
         #TODO return or write to file here?
