@@ -1,6 +1,6 @@
 """Base model class for Tensorflow-based model construction."""
 from datasources import TextSource
-from util.preprocessor import load_vocab
+from util.preprocessor import load_vocab, load_results
 from .summary_manager import summary_clean
 
 import os
@@ -33,6 +33,7 @@ class BaseModel(object):
                  learning_schedule: List[Dict[str, Any]],
                  train_data: Dict[str, TextSource],
                  test_data: Dict[str, TextSource] = {},
+                 validation_data_source = None,
                  test_losses_or_metrics: str = None):
         """Initialize model with data sources and parameters."""
         assert len(train_data) > 0
@@ -41,6 +42,7 @@ class BaseModel(object):
         self._test_data = test_data
         self._test_losses_or_metrics = test_losses_or_metrics
         self._initialized = False
+        self.validate_source = validation_data_source or None
 
         # Extract and keep known prefixes/scopes
         self._learning_schedule = learning_schedule
@@ -332,7 +334,7 @@ class BaseModel(object):
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
 
-        max_steps = 20
+        max_steps = 200
         min_steps = 1 #allow 0? TODO
         initial_steps = 1
 
@@ -418,6 +420,10 @@ class BaseModel(object):
                             generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator)
             self.time.log_every('train_iteration', to_print, seconds=0.5)
 
+            if self.validate_source:
+                acc = self.validation_accuracy()
+                logger.critical('Validation accuracy: {}'.format(acc))
+
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:
                 self._tester.trigger_test_if_not_testing(current_step)
@@ -474,3 +480,8 @@ class BaseModel(object):
         results = np.array(results).flatten()[:data_source.len_data]
         return results
         #TODO return or write to file here?
+
+    def validation_accuracy(self):
+        predictions = self.evaluate(self.validate_source)
+        target = coree.load_results()
+        return 1 - np.mean(np.abs(np.array(target) - np.array(predictions)))

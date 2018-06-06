@@ -92,7 +92,7 @@ if __name__ == '__main__':
         )
 
         model.train(
-            num_epochs=0,
+            num_epochs=10,
         )
 
         predictions = model.evaluate(
