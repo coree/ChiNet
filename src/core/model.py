@@ -91,6 +91,7 @@ class BaseModel(object):
     def _build_all_models(self):
         """Build training (GPU/CPU) and testing (CPU) streams."""
         self.output_tensors = {}
+        self.predicted_ending = {}
         self.loss_terms = {}
         self.metrics = {}
         self.inputs = {}
@@ -108,7 +109,8 @@ class BaseModel(object):
             output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all 
 
             # Record important tensors
-            self.output_tensors[mode] = output_tensors
+            # self.output_tensors[mode] = output_tensors
+            self.predicted_ending[mode] = output_tensors
             self.embedding_assign_op[mode] = raw_outputs['embedding_assign_op']
             self.loss_terms[mode] = loss_terms
             self.metrics[mode] = metrics
@@ -269,9 +271,10 @@ class BaseModel(object):
             #TODO pretrain loss?
 
             #summary_ops = self.summary.get_ops(mode='train')
-            #if len(summary_ops) > 0:
-            #    fetches['summaries'] = summary_ops
-            #TODO fix summaries 
+            summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+            summary_clean(summary_ops, 'generator') 
+            if len(summary_ops) > 0:
+                fetches['summaries'] = summary_ops
 
             self.time.start('pretrain_iteration', average_over_last_n_timings=100)
             outcome = self._tensorflow_session.run(
@@ -349,11 +352,11 @@ class BaseModel(object):
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
                 #TODO fix summaries
-                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
-                #summary_clean(summary_ops, 'discriminator') 
+                summary_ops = self.summary.get_ops(mode='train')  ## TODO Temporary fix
+                summary_clean(summary_ops, 'discriminator') 
 
-                #if len(summary_ops) > 0:
-                #   fetches['summaries'] = summary_ops
+                if len(summary_ops) > 0:
+                  fetches['summaries'] = summary_ops
 
                 iteration_threshold_reached = (discriminator_iteration_threshold < current_step)
                 
@@ -381,10 +384,10 @@ class BaseModel(object):
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
                 #TODO fix summaries
-                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
-                #summary_clean(summary_ops, 'discriminator') 
-                #if len(summary_ops) > 0:
-                #   fetches['summaries'] = summary_ops
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+                summary_clean(summary_ops, 'generator') 
+                if len(summary_ops) > 0:
+                  fetches['summaries'] = summary_ops
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -439,24 +442,28 @@ class BaseModel(object):
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
         #write scores to file #TODO how much of this to do here?
-
+        assert data_source.testing == True
+        data_source._generate_batches()
         results = []
-        for data_points in range(data_source.len_data):
+        for data_points in range(data_source.num_batches):
 
             sentences, sentence_lengths = data_source.get_batch()
-            extra_sentence = sentences[-1]
-            sentences = sentences[:-1]
+            sentences = np.array(sentences)
+            sentence_lengths = np.array(sentence_lengths)
+
+            extra_sentence = np.expand_dims(sentences[:, -1, :], axis=1)
+            sentences = sentences[:,:-1,:]
             
-            extra_sentence_length = sentence_lengths[-1]
-            sentence_lengths = sentence_lengths[:-1]
+            extra_sentence_length = np.expand_dims(sentence_lengths[:, -1], axis=1)
+            sentence_lengths = sentence_lengths[:, :-1]
 
             feed_dict = {}
             feed_dict[self.inputs['train']['sentences']] = sentences
-            feed_dict[self.inputs['train']['extra_sentence']] = sentence_lengths
+            feed_dict[self.inputs['train']['extra_sentence']] = extra_sentence
             feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
             feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
             outcome = self._tensorflow_session.run(
-                [self.output_tensors['train']['predicted_ending']],  # TODO @NIL I'm debugging this thing
+                [self.predicted_ending['train']],  # TODO @NIL I'm debugging this thing
                                                                      # I'm also gonna clean some stuff on cgan
                                                                      # If y'all can get checking if you are able to train
                                                                      # and the loss makes sense, that'd be great
@@ -464,7 +471,7 @@ class BaseModel(object):
                 feed_dict = feed_dict
             )
             results.append(outcome)
-            print(outcome)
+        results = np.array(results).flatten()
         print(results)
-
+        return results
         #TODO return or write to file here?

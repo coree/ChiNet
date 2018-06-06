@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
         logger.info('Initialize tensorflow session')
         # Declare some parameters
-        batch_size = 2
+        batch_size = 32
 
         # Define model
         from datasources import TextSource
@@ -87,19 +87,17 @@ if __name__ == '__main__':
 
         #TODO pretrain
         model.pretrain(
-            num_steps=1,
+            num_steps=0,
         )
 
         model.train(
-            num_epochs=50,
+            num_epochs=0,
         )
 
-        # model.evaluate(
-        #     TextSource(
-        #             1,
-        #             file_path='../datasets/cloze_test_val.csv',
-        #             testing=True,
-        #         )
-        # )
-
-        #TODO predict
+        model.evaluate(
+            TextSource(
+                    batch_size,
+                    file_path='../datasets/cloze_test_val.csv',
+                    testing=True,
+                )
+        )

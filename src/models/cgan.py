@@ -275,7 +275,7 @@ class CGAN(BaseModel):
         input_states = sentence_states[:,:config['input_sentence_n']]
         target_1_state = sentence_states[:,config['input_sentence_n']]
         target_2_state = sentence_states[:,config['input_sentence_n']+1]
-          
+
         #we must calculate separate document states due to attention
         input_states_attention_1 = apply_attention(input_states, target_1_state, config)
         input_states_attention_2 = apply_attention(input_states, target_2_state, config)
@@ -290,9 +290,10 @@ class CGAN(BaseModel):
         score_target_2 = score(document_state_2, target_2_state)
 
         #predicted ending is 0 for ending_1 and 1 for ending_2 (extra target)
-        predicted_ending_list = []
+        predicted_ending_list = [None] * config['batch_size']
         for i in range(config['batch_size']):
-            predicted_ending_list += tf.cond(score_target_1[i] > score_target_2[i], lambda: 0, lambda: 1)
+            predicted_ending_list[i] = tf.cond(score_target_1[i] > score_target_2[i], lambda: 0, lambda: 1)
+            # predicted_ending_list = tf.Print(predicted_ending_list, [predicted_ending_list, score_target[i], i, score_target_2[i]])
         predicted_ending = tf.stack(predicted_ending_list, axis=0)
 
         logger.info('Model {} building exiting.'.format(__name__))

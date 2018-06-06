@@ -43,7 +43,7 @@ class TextSource(object):
         self._data = data
         logger.debug('Loaded data : [{}, {}, ...]'.format(self._data[0],self._data[0]))
 
-        self._generate_batches(testing)
+        self._generate_batches()
         self.num_batches = len(self._batched_data)  # Number of batches
         logger.info('Text source initialize complete')
     
@@ -75,26 +75,30 @@ class TextSource(object):
     def _shuffle(self):
         return [self._data[i] for i in permutation(self.len_data)]
 
-    def _generate_batches(self, testing):
+    def _generate_batches(self):
         logger.debug('Generating new data batches')
-        if testing:
-            self._batched_data = [[i] for i in self._data]
+        if self.testing:
+            shuffled_data = self._data[:]
+            self._batched_data = []
+            for i in range(self.len_data//self.batch_size):
+                self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
+            difference = self.batch_size - (self.len_data % self.batch_size)
+            last_elem = shuffled_data[self.batch_size*(i+1):] + [[[0] for _ in range(len(shuffled_data[0]))]]*difference
+            self._batched_data.append(last_elem)
             logger.info('Returning test batch')
         else:
             shuffled_data = self._shuffle()
             self._batched_data = []
             for i in range(self.len_data//self.batch_size):
                 self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
-            if self.len_data%self.batch_size != 0:
+            if self.len_data % self.batch_size != 0:
                 logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self.batch_size))
 
     def get_batch(self):
         if not self._batched_data:
             self._generate_batches()
         logging.debug("Current numeber of batches: {}".format(len(self._batched_data)))
-        data = self._batched_data.pop()
-
-
+        data = self._batched_data.pop(0)
         return self._pad_and_measure_sentences(data)
 
     def preprocess(self, file_path, clean_file):
