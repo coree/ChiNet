@@ -19,7 +19,7 @@ class TextSource(object):
                  file_path: int ='../datasets/train_stories.csv',
                  testing=False,
                  override_file=False,
-                 vocab_size=20000):
+                 vocab_size=25000):
         """Initializes data source and loads sentences from disk"""
         self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
         self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'

@@ -126,7 +126,7 @@ def preprocess_file(file_path='../datasets/train_stories.csv',
         pickle.dump(data, f)
 
 
-def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=20000, write=True):
+def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=25000, write=True):
     """ 
     Preprocess, tokenise and encode the data
     

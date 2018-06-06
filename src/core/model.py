@@ -181,7 +181,7 @@ class BaseModel(object):
                                 v for v in all_trainable_variables
                                 if v.name.startswith(prefix)
                             ]
-                    logger.info(' Variables to train : {}'.format(variables_to_train))
+                    logger.info(' Variables to train for {}: {}'.format(loss_term_key, variables_to_train))
                 except:
                     raise NameError('Obvious fail building {}'.format(loss_term_key))
 
@@ -380,6 +380,7 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
+                #TODO fix summaries
                 #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
                 #summary_clean(summary_ops, 'discriminator') 
                 #if len(summary_ops) > 0:
