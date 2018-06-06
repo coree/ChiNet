@@ -75,12 +75,11 @@ if __name__ == '__main__':
                     file_path='../datasets/train_stories.csv',
                 ),
             },
-            # test_data={
-            #     'real': TextSource(
-            #         1,
-            #         file_path='../datasets/train_stories.csv',
-            #     ),
-            # },
+            validation_data_source=TextSource(
+                batch_size,
+                file_path='../datasets/cloze_test_val.csv',
+                testing=True,
+            ),
         )
 
         model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin", 

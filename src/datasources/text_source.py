@@ -24,6 +24,7 @@ class TextSource(object):
         self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
         self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'
         self.testing = testing
+        self.preprocessed_vocab = True if testing else False
         self.vocab_size = vocab_size
 
         # If preprocessed file doesn't exit we create it
@@ -108,7 +109,7 @@ class TextSource(object):
         logger.info('Clean file {} created'.format(clean_file))
         logger.info('Started preprocessing data...')
         # Preprocess data
-        coree.preprocess_data(clean_file, self._data_file, self.vocab_size)
+        coree.preprocess_data(clean_file, self._data_file, self.vocab_size, use_prevocab=self.preprocessed_vocab)
         logger.info('Data preprocessing and vocabulary creation complete.')
 
     def shape(self):

@@ -147,7 +147,7 @@ def load_results(clean_file='../datasets/results.clean', overwrite=False):
         data = pickle.load(f)
     return data
 
-def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=25000, write=True):
+def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=25000, write=True, use_prevocab=False):
     """ 
     Preprocess, tokenise and encode the data
     
@@ -189,9 +189,12 @@ def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../
                                                         len(raw)))
         data.append(story)
 
-    # generate vocabulary and write it to a pickle
-    id_word, known_words, word_id = make_vocab(vocab, vocab_size)
-
+    if not use_prevocab:
+        # generate vocabulary and write it to a pickle
+        id_word, known_words, word_id = make_vocab(vocab, vocab_size)
+    else:
+        _, word_id = load_vocab()
+        known_words = list(word_id.keys())
     #print('known_words', known_words)
     #print('id_word', id_word)
 
