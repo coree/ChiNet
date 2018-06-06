@@ -48,23 +48,32 @@ where $s$ denotes the embedded sentence. We denote the final hidden state of the
 We then define our document RNN as
 $$ h^{d}_{i} = GRU(r^{s}_{i}; h^{d}_{i-1}) $$
 and similarly denote the final hidden state of the document RNN as $r^{d}$. \\
-Attention is defined as
-$$ \tilde{r}^{s}_{i} = r^{s}_{t}W_{A}(r^{s}_{i})^{T} $$
-where $r^{s}_{t}$ denotes the target sentence and $W_{A}$ is the attention matrix. \\
 Now, we define our generator RNN as
 $$ h^{g}_{i} = GRU(y_{i}; h^{g}_{i-1}) $$
-where $y_{i}$ is the word generated at the previous time step. We initialize $y_{0}$ as the embedded <start> word. Unlike the sentence and document RNN, where the initial hidden states $h^{s}_{0}$ and $h^{d}_{0}$ are set to 0, we initialize our generator hidden state as
+where $y_{i}$ is the embedded word generated at the previous time step. We set $y_{0}$ to the embedded stop-word. Unlike the sentence and document RNN, where the initial hidden states $h^{s}_{0}$ and $h^{d}_{0}$ are set to 0, we initialize our generator hidden state as
 $$ h^{g}_{0} = r^{d} + z $$
 $$ z \sim \mathcal{N}(0,1) $$
-We determine the generated word from the generator hidden state using the Gumbel-Softmax
+We determine the generated word from the generator hidden state using Gumbel-Softmax:
 
-$$h->y.equation$$
+$$ \pi_{i} = softmax(h^{g}_{i}W_{d \rightarrow e}W_{e}^{T})$$
+$$ g_{i} = -log(-log(u)) $$
+$$ u \sim Uniform(0,1) $$
+$$ t_{i} = relu(h^{g}_{i}W_{t}) + \epsilon $$
+$$ p_{i} = softmax(\frac{log(\pi_{i}) + g_{i}}{t_{i}}) $$
+$$ y_{i} = p_{i}W_{e}$$
 
-Our discriminator score is defined as 
+where $W_{d \rightarrow e}$ is a transformation matrix from document to embedding space, $W_{e}$ is the embedding matrix, $W_{t}$ is a matrix used to determine the temperature $t_{i}$ and $\epsilon$ is a small number to ensure that $t_{i}$ is positive. We continue to generate words until the stop-word is generated (we use $\pi_{i}$ to check) or the maximum sentence length is reached. We then stack the words to obtain the generated embedded sentence $\bar{s}$.
+
+The discriminator score is defined as 
 
 $$ D = \sigma(r^{d}W_{d \rightarrow s}(r^{s}_{t})^{T} )$$
 
-where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space and $\sigma$ is the sigmoid function.
+where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space and $\sigma$ is the sigmoid function. The discriminator assigns the score 1 to target sentences $r^{s}_{t}$ that it considers the most likely ending given the document context $r_{d}$ and 0 to the least likely. \\
+We use attention to assign weights to the inputs of the document RNN, based on their similarity to the target sentence. The weighted sentences are determined as
+$$ \tilde{r}^{s}_{i} = r^{s}_{i} \cdot a_{i} $$
+$$ a_{i} = r^{s}_{t}W_{A}(r^{s}_{i})^{T} $$
+where $r^{s}_{t}$ denotes the target sentence, $W_{A}$ is an attention matrix and $\cdot$ denotes the scalar product. We do not use attention when determining the document context for sentence generation, as this would provide information about the ground truth target sentence to the generator.\\ \\
+Now, given a story without the ending (distilled to a single document representation using the sentence and document RNNs) and two endings (both distilled to sentence representations using the sentence RNN), we can determine the most likely ending as having the highest discriminator score $D$. 
 
 \section{Training}
 What is your objective? How do you optimize it?
