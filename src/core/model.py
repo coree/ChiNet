@@ -210,8 +210,8 @@ class BaseModel(object):
 
         _, vocab = load_vocab()  # Retrieve just word id
         if not len(vocab) == vocab_size:
-            logger.warning(' Asked for a vocabulary size of {0} but vocabulary file has {1} entries. Setting vocab_size to {1}'.format(vocab_size, len(vocab)))
-            vocab_size = len(vocab)
+            logger.warning(' Asked for a vocabulary size of {0} but vocabulary file has {1} entries. Keeping {0}'.format(vocab_size, len(vocab)))
+            # vocab_size = len(vocab)
         model = models.KeyedVectors.load_word2vec_format(path, binary=binary)  
 
         embedding_size = model.vector_size  # Embedding size given by the loaded module
