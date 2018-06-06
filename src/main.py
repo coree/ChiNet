@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
         #TODO pretrain
         model.pretrain(
-            num_steps=5,
+            num_steps=1,
         )
 
         model.train(

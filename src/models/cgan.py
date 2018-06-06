@@ -1,4 +1,4 @@
-#GAN architecture
+#CGAN architecture
 
 import logging
 import tensorflow as tf
@@ -23,9 +23,10 @@ def score(document_state, target_sentence_state):
         document_to_sentence_weights = tf.get_variable("document_to_sentence_weights")
 
     document_state_sentence_space = tf.matmul(document_state, document_to_sentence_weights)
-    #dimensions are expanded by 1 to make dot product correct: config['batch_size'] x [(1 x sentence_hidden) x (sentence_hidden x 1)] => config['batch_size'] x [1]
+  
     score = tf.matmul(tf.expand_dims(document_state_sentence_space, axis=1), tf.expand_dims(target_sentence_state, axis=2))
     score_sigmoid = tf.sigmoid(score)
+    
     return tf.squeeze(score_sigmoid) #squeeze removes 1x1 dimension at end
 
 #TODO matrix operation version of Gumbel softmax could be breaking everything
@@ -42,8 +43,8 @@ def gumbel_softmax(generator_state, config):
 
     gumbel_pi = tf.nn.softmax(tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)))
     gumbel_t = tf.nn.relu(tf.matmul(generator_state, temperature_weights)) + temperature_epsilon
-    gumbel_t = tf.clip_by_value(gumbel_t, temperature_min, temperature_max)
-    #gumbel_t = 0.001
+    #gumbel_t = tf.clip_by_value(gumbel_t, temperature_min, temperature_max)
+    gumbel_t = 0.001
     gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
     gumbel_g = -tf.log(-tf.log(gumbel_u))
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
@@ -105,23 +106,11 @@ def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, c
     generator_state = generator_conditioners
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
-    
-    #with tf.variable_scope("output_weights", reuse=True):
-    #    output_weights = tf.get_variable("output_weights", shape=[config['generator_hidden_size'], config['vocab_size']]) 
 
     for i in range(config['max_sentence_length']):
         _, generator_state = generator_rnn_cell(generated_word, generator_state, scope="generator")
         
         generated_word, stop_word_probability = gumbel_softmax(generator_state, config)
-        
-        # generated_word, stop_word_probability = gumbel_softmax(generator_state=generator_state, config=config) -> PREVIOUS APPROACH | LIKELY THE CORRECT THING
-        #   OKAY THE FOLLOWING UPDATE IS MAYBE NOT GONNA WORK, you can see the rationale for it up there. Also, there are many other papers that use
-        # Gumbel without actually really doing Chinese et al. convoluted stuff
-        # word_probabilities = tf.nn.softmax( tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)  )) # -> KEEPING THE LINE OF THE ARTICLE
-        #word_probabilities = tf.nn.softmax( tf.matmul(generator_state, output_weights))  # -> WHY NOT SOMETHING ON THIS LINE
-        #stop_word_probability = word_probabilities[:, config['stop_word_index']]
-        #generated_word  = gumbel_softmax(word_probabilities, config=config)
-        #generated_word = tf.matmul(generated_word, embedding_weights)
 
         #set sequence length to min(sequence_length, i) if stop word was generated
         for j in range(config['batch_size']):
@@ -148,7 +137,7 @@ def apply_attention(input_states, target_state, config):
     return input_states_attention
 
 #given sentences with one-hot vocabulary indices, apply embeddings and sentence rnn to get sentence representations
-def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_cell, sentence_n, config): #TODO sentence rnn cell through get_variables?
+def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_cell, sentence_n, config):
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
     
@@ -182,6 +171,7 @@ class CGAN(BaseModel):
         config['start_word_index'] = 0
         config['stop_word_index'] = 1
         config['stop_word_bound'] = 0.9
+        config['discriminator_noise_std'] = 1.0
 
         #SHARED VARIABLES
         with tf.variable_scope('inputs'):
@@ -191,6 +181,7 @@ class CGAN(BaseModel):
             #extra sentence is used for pretraining and evaluation
             extra_sentence = tf.placeholder(shape=[config['batch_size'], 1, config['max_sentence_length']], dtype=tf.int64, name='extra_sentence')
             extra_sentence_length = tf.placeholder(shape=[config['batch_size'], 1], dtype=tf.int32, name="extra_sentence_length")
+            iteration_threshold_reached = tf.placeholder(shape=[], dtype=tf.bool, name="iteration_threshold_reached")
 
         with tf.variable_scope('embedding'):
             word2vec_weights = tf.placeholder(shape=[config['vocab_size'], config['embedding_size']], dtype=tf.float32, name='word2vec_weights') 
@@ -218,10 +209,7 @@ class CGAN(BaseModel):
             generator_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['generator_hidden_size'], activation=config['rnn_activation'], name="generator_cell")
             generator_to_embedding_weights = tf.get_variable(name="generator_to_embedding_weights", shape=[config['generator_hidden_size'], config['embedding_size']], dtype=tf.float32, initializer=config['initializer'])
             temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32, initializer=config['initializer']) 
-            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(0.01), dtype=tf.float32) #TODO can float32 contain 1e-20? 
-
-        #with tf.variable_scope("output_weights"):
-        #    output_weights = tf.get_variable("output_weights", shape=[config['generator_hidden_size'], config['vocab_size']]) 
+            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(0.0001), dtype=tf.float32) 
 
         #GRAPHS 
         #Generator pretraining
@@ -268,6 +256,8 @@ class CGAN(BaseModel):
             _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states, initial_state=initial_state, dtype=tf.float32, scope="document")
 
             generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
+            #after some iterations, add noise to discriminator input #TODO control noise magnitude with parameter?
+            generated_sentence = tf.cond(iteration_threshold_reached, lambda: generated_sentence + tf.random_normal(shape=[config['batch_size'], config['max_sentence_length'], config['embedding_size']], stddev=config['discriminator_noise_std']), lambda: generated_sentence)
 
             initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
             _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
@@ -307,9 +297,9 @@ class CGAN(BaseModel):
 
         logger.info('Model {} building exiting.'.format(__name__))
 
+        #TODO (low priority) embedding_assign_op technically not an output...
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
                 {"pretrain_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics
-                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length,
-                    "word2vec_weights": word2vec_weights}  #input
+                {"sentences": sentences, "sentence_lengths": sentence_lengths, "extra_sentence": extra_sentence, "extra_sentence_length": extra_sentence_length, "iteration_threshold_reached": iteration_threshold_reached, "word2vec_weights": word2vec_weights}  #input
                 )         

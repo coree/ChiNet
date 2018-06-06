@@ -236,7 +236,7 @@ class BaseModel(object):
             feed_dict=feed_dict
         )
 
-    #[GAN HACK pretrain generator to output target sentences from only noise TODO use also input sentences?] 
+    #[GAN HACK pretrain generator to output target sentences from only noise
     def pretrain(self, num_epochs=None, num_steps=None):
 
         #Pseudocode
@@ -330,7 +330,10 @@ class BaseModel(object):
         current_step = initial_step
 
         max_steps = 20
-        initial_steps = 10
+        min_steps = 1 #allow 0? TODO
+        initial_steps = 1
+
+        discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many iterations
 
         num_steps_discriminator = initial_steps
         num_steps_generator = initial_steps
@@ -345,16 +348,20 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
-                summary_clean(summary_ops, 'discriminator') 
+                #TODO fix summaries
+                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+                #summary_clean(summary_ops, 'discriminator') 
 
-                if len(summary_ops) > 0:
-                   fetches['summaries'] = summary_ops
+                #if len(summary_ops) > 0:
+                #   fetches['summaries'] = summary_ops
+
+                iteration_threshold_reached = (discriminator_iteration_threshold < current_step)
                 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
                 feed_dict[self.inputs['train']['sentences']] = sentences
                 feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
+                feed_dict[self.inputs['train']['iteration_threshold_reached']] = iteration_threshold_reached
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
 
@@ -373,10 +380,10 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
-                summary_clean(summary_ops, 'discriminator') 
-                if len(summary_ops) > 0:
-                   fetches['summaries'] = summary_ops
+                #summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+                #summary_clean(summary_ops, 'discriminator') 
+                #if len(summary_ops) > 0:
+                #   fetches['summaries'] = summary_ops
 
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
@@ -394,10 +401,10 @@ class BaseModel(object):
             generator_loss = np.mean(generator_losses)
             
             #update num_steps_discriminator and num_steps_generator
-            #clip losses to present negative losses messing up ratio
+            #clip losses to prevent negative losses messing up ratio
             loss_ratio = np.clip(discriminator_loss, a_min=1e-20, a_max=None) / np.clip(generator_loss, a_min=1e-20, a_max=None)
-            num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), 1, max_steps))
-            num_steps_generator = int(np.clip(initial_steps*loss_ratio, 1, max_steps))
+            num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), min_steps, max_steps))
+            num_steps_generator = int(np.clip(initial_steps*loss_ratio, min_steps, max_steps))
             
             self.time.end('train_iteration')
 
