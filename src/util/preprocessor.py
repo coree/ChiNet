@@ -61,6 +61,7 @@ def make_vocab(vocab, vocab_size):
     word_id["UNK"] = 3
 
     id_word = dict(zip(word_id.values(), word_id.keys()))  # reverse dict to get word from id
+    known_words = list(word_id.keys())
     # write to pickle
     write_vocab(id_word, word_id)
     return id_word, known_words, word_id
