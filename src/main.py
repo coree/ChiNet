@@ -74,15 +74,10 @@ if __name__ == '__main__':
                     file_path='../datasets/train_stories.csv',
                 ),
             },
-            # If you want to validate your model, split the training set into
-            # training and validation and uncomment this line
             # test_data={
-            #     'real': HDF5Source(
-            #         session,
-            #         batch_size,
-            #         hdf_path='../datasets/new_data.h5',  # TODO -> Do we need a different file?
-            #         keys_to_use=['test'],
-            #         testing=True,
+            #     'real': TextSource(
+            #         1,
+            #         file_path='../datasets/train_stories.csv',
             #     ),
             # },
         )
@@ -91,9 +86,20 @@ if __name__ == '__main__':
                               binary=True)
 
         #TODO pretrain
+        model.pretrain(
+            num_epochs=10,
+        )
 
         model.train(
             num_epochs=50,
         )
+
+        # model.evaluate(
+        #     TextSource(
+        #             1,
+        #             file_path='../datasets/cloze_test_val.csv',
+        #             testing=True,
+        #         )
+        # )
 
         #TODO predict

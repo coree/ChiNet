@@ -277,7 +277,7 @@ class BaseModel(object):
                 
             self.time.start('pretrain_iteration', average_over_last_n_timings=100)
             outcome = self._tensorflow_session.run(
-                fetches=self.output_tensors['train']["pretrain_loss"],
+                fetches=[self.output_tensors['train']["pretrain_loss"]],
                 feed_dict=feed_dict
             )
             self.time.end('pretrain_iteration')
@@ -426,18 +426,41 @@ class BaseModel(object):
 
     def evaluate(self, data_source):
         #Pseudocode
-
+        self.initialize_if_not()
         #Predict correct story endings (repeat for every test data entry)
 
         #sample inputs sentences and two target sentences
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
         #write scores to file #TODO how much of this to do here?
+        results = []
+        for data_points in range(data_source.len_data):
 
+            sentences, sentence_lengths = data_source.get_batch()
+            extra_sentence = sentences[-1]
+            sentences = sentences[:-1]
+            
+            extra_sentence_length = sentence_lengths[-1]
+            sentence_lengths = sentence_lengths[:-1]
+
+            feed_dict = {}
+            feed_dict[self.inputs['train']['sentences']] = sentences
+            feed_dict[self.inputs['train']['extra_sentence']] = sentence_lengths
+            feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
+            feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
+            outcome = self._tensorflow_session.run(
+                [self.output_tensors['train']['predicted_ending']],  # TODO @NIL I'm debugging this thing
+                                                                     # I'm also gonna clean some stuff on cgan
+                                                                     # If y'all can get checking if you are able to train
+                                                                     # and the loss makes sense, that'd be great
+
+                feed_dict = feed_dict
+            )
+            results.append(outcome)
+            print(outcome)
+        print(results)
         #fetches['output_tensors'] = ['predicted_ending']
         #feed_dict[self.inputs['test']['sentences']]
         #feed_dict[self.inputs['test']['sentence_lengths']]
         #feed_dict[self.inputs['test']['extra_sentence']]
         #feed_dict[self.inputs['test']['extra_sentence_length']]
-
-        pass
