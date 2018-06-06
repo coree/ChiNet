@@ -77,7 +77,24 @@ Now, given a story without the ending (distilled to a single document representa
 
 \section{Training}
 What is your objective? How do you optimize it?
-\textbf{Xander is on this}
+\textbf{Xander is on this} \\
+
+We defined different losses for the generator and discriminator, and a separate loss for pretraining the generator. The discriminator loss is given by
+$$ L_{D} = -log(D) - log(1-\bar{D})$$
+where $D$ denotes the discriminator score of the ground truth sentence and $\bar{D}$ denotes the discriminator score of the generated sentence. The discriminator loss is minimized when the discriminator assigns a score 1 to the ground truth ending and a score 0 to the generated ending. \\
+The generator loss is given by
+$$ L_{G} = -log(\bar{D}) - similarity(r^{s}_{t}, r^{s}_{g}) $$
+where $\bar{D}$ denotes the discriminator score of the generated sentence, $r^{s}_{t}$ denotes the sentence representation of the target sentence, $r^{s}_{t}$ denotes the target representation of the generated sentence, and $similarity$ denotes the cosine similary. The second term in the loss is not traditionally used in GANs, but was added to improve the performance of the generator. The generator loss is minimized when the generator assigns a score 1 to the generated ending and the generated ending is maximally similar to the target ending. \\
+To improve the performance of the generator, pretraining was performed. During pretraining, the generator was not conditioned on a document context and generated sentences based only on random noise, much like a standard GAN. Specifically, the generator hidden state was initialized as
+$$ h^{g}_{0} = z $$
+$$ z \sim \mathcal{N}(0,1) $$
+and the pretrain generator loss is defined as
+$$ L_{G}^{pretrain} = -similarity(r^{s}_{t}, r^{s}_{g}) $$
+Pretraining was first performed on the generator for a number of epochs, and then the generator and discriminator were trained together. During each epoch of training, the discriminator was trained for $n_{D}$ batches and the generator for $n_{G}$ batches; the number of training batches were then updated according to the ratio of the discriminator and generator losses:
+$$ n_{D} = \frac{L_{D}}{L_{G}} $$ 
+$$ n_{G} = \frac{L_{G}}{L_{D}} $$
+The losses were averaged over the batches and the number of training batches were clipped to the range $[1,20]$. The initial number of training batches were initialized to 1 and a batch size of 32 was used.
+
 \section{Experiments}
 This {\bf must} at least include the accuracy of your method on the validation set.
 \section{Conclusion}
