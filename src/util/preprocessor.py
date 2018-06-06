@@ -24,10 +24,10 @@ def write_vocab(id_word, word_id):
         pickle.dump(id_word, f)
 
 #write data to file
-def write_processed_data(processed_data):
+def write_processed_data(processed_data, write_file):
     if not os.path.exists("../datasets"):
         os.makedirs("../datasets")
-    with open("../datasets/train_stories.processed", "wb") as f:
+    with open(write_file, "wb") as f:
         pickle.dump(processed_data, f)
 
 
@@ -111,17 +111,22 @@ def dehumanify(story):
     return sentences
 
 def preprocess_file(file_path='../datasets/train_stories.csv', 
-                         clean_file='../datasets/train_stories.clean'):
+                         clean_file='../datasets/train_stories.clean', testing=False):
     """ Preprocess the csv into a pickled python list"""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = list(csv.DictReader(f))
     # Just grab sentences from 1 to 5 and save them in a new file
-    data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data] 
+    if testing:
+        keys = ['InputSentence{}'.format(i+1) for i in range(4)] + ['RandomFifthSentenceQuiz{}'.format(i+1) for i in range(2)]
+        data = [[s[k] for k in keys]  for s in data] 
+    else:
+        data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data] 
+        
     with open(clean_file, 'wb') as f:
         pickle.dump(data, f)
 
 
-def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=20000, write=True):
+def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=20000, write=True):
     """ 
     Preprocess, tokenise and encode the data
     
@@ -184,5 +189,5 @@ def preprocess_data(read_file='../datasets/train_stories.clean', vocab_size=2000
             new_story.append(sentence)
         new_data.append(new_story)
     if write:
-        write_processed_data(new_data)
+        write_processed_data(new_data, write_file)
     return new_data, word_id, id_word

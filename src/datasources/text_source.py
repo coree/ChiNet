@@ -23,7 +23,7 @@ class TextSource(object):
         """Initializes data source and loads sentences from disk"""
         self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
         self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'
-        
+        self.testing = testing
         self.vocab_size = vocab_size
 
         # If preprocessed file doesn't exit we create it
@@ -43,7 +43,7 @@ class TextSource(object):
         self._data = data
         logger.debug('Loaded data : [{}, {}, ...]'.format(self._data[0],self._data[0]))
 
-        self._generate_batches()
+        self._generate_batches(testing)
         self.num_batches = len(self._batched_data)  # Number of batches
         logger.info('Text source initialize complete')
     
@@ -75,30 +75,36 @@ class TextSource(object):
     def _shuffle(self):
         return [self._data[i] for i in permutation(self.len_data)]
 
-    def _generate_batches(self):
+    def _generate_batches(self, testing):
         logger.debug('Generating new data batches')
-        shuffled_data = self._shuffle()
-        self._batched_data = []
-        for i in range(self.len_data//self.batch_size):
-            self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
-        if self.len_data%self.batch_size != 0:
-            logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self.batch_size))
+        if testing:
+            self._batched_data = [[i] for i in self._data]
+            logger.info('Returning test batch')
+        else:
+            shuffled_data = self._shuffle()
+            self._batched_data = []
+            for i in range(self.len_data//self.batch_size):
+                self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
+            if self.len_data%self.batch_size != 0:
+                logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self.batch_size))
 
     def get_batch(self):
         if not self._batched_data:
             self._generate_batches()
         logging.debug("Current numeber of batches: {}".format(len(self._batched_data)))
         data = self._batched_data.pop()
+
+
         return self._pad_and_measure_sentences(data)
 
     def preprocess(self, file_path, clean_file):
         """ Whole preprocess pipeline data"""
         # Preprocess file
-        coree.preprocess_file(file_path, clean_file)
+        coree.preprocess_file(file_path, clean_file, self.testing)
         logger.info('Clean file {} created'.format(clean_file))
         logger.info('Started preprocessing data...')
         # Preprocess data
-        coree.preprocess_data(clean_file, self.vocab_size)
+        coree.preprocess_data(clean_file, self._data_file, self.vocab_size)
         logger.info('Data preprocessing and vocabulary creation complete.')
 
     def shape(self):
