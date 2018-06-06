@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
         #TODO pretrain
         model.pretrain(
-            num_epochs=10,
+            num_steps=5,
         )
 
         model.train(

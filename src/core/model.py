@@ -158,7 +158,6 @@ class BaseModel(object):
         self._tensorflow_session.run(tf.global_variables_initializer())
         self._initialized = True
 
-    #TODO will this be used?
     def _build_optimizers(self):
         """Based on learning schedule, create optimizer instances."""
         self._optimize_ops = []
@@ -228,8 +227,6 @@ class BaseModel(object):
             logger.debug("Tokens not included: {}".format(non_included))
             logger.warning('{} of {} tokens were not found in embedding fike'.format(len(non_included), vocab_size))
 
-        # TODO also assign embedding start and stop words, perhaps also stop word error bound 
-
         fetches = {}
         fetches['output_tensors'] = self.embedding_assign_op['train']  # ["embeding_assign_op"]
         feed_dict = {self.inputs['train']['word2vec_weights']: external_embedding}
@@ -241,7 +238,6 @@ class BaseModel(object):
 
     #[GAN HACK pretrain generator to output target sentences from only noise TODO use also input sentences?] 
     def pretrain(self, num_epochs=None, num_steps=None):
-        #TODO how does weight saving work for pretraining?
 
         #Pseudocode
 
@@ -270,14 +266,16 @@ class BaseModel(object):
 
             fetches = {}
             fetches['optimize_ops'] = self._optimize_ops[0][0]  # TODO Really ugly fix
+            #TODO pretrain loss?
 
-            summary_ops = self.summary.get_ops(mode='train')
-            if len(summary_ops) > 0:
-                fetches['summaries'] = summary_ops
-                
+            #summary_ops = self.summary.get_ops(mode='train')
+            #if len(summary_ops) > 0:
+            #    fetches['summaries'] = summary_ops
+            #TODO fix summaries 
+
             self.time.start('pretrain_iteration', average_over_last_n_timings=100)
             outcome = self._tensorflow_session.run(
-                fetches=[self.output_tensors['train']["pretrain_loss"]],
+                fetches=fetches,
                 feed_dict=feed_dict
             )
             self.time.end('pretrain_iteration')
@@ -347,7 +345,7 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
                 summary_clean(summary_ops, 'discriminator') 
 
                 if len(summary_ops) > 0:
@@ -375,7 +373,7 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporal fix
+                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
                 summary_clean(summary_ops, 'discriminator') 
                 if len(summary_ops) > 0:
                    fetches['summaries'] = summary_ops
@@ -433,6 +431,7 @@ class BaseModel(object):
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
         #write scores to file #TODO how much of this to do here?
+
         results = []
         for data_points in range(data_source.len_data):
 
@@ -459,8 +458,5 @@ class BaseModel(object):
             results.append(outcome)
             print(outcome)
         print(results)
-        #fetches['output_tensors'] = ['predicted_ending']
-        #feed_dict[self.inputs['test']['sentences']]
-        #feed_dict[self.inputs['test']['sentence_lengths']]
-        #feed_dict[self.inputs['test']['extra_sentence']]
-        #feed_dict[self.inputs['test']['extra_sentence_length']]
+
+        #TODO return or write to file here?
