@@ -147,7 +147,7 @@ class CGAN(BaseModel):
         config['rnn_activation'] = tf.nn.tanh 
         config['start_word_index'] = 0
         config['stop_word_index'] = 1
-        config['stop_word_bound'] = 0.9
+        config['stop_word_bound'] = 0.5
         config['discriminator_noise_std'] = 1.0
 
         #SHARED VARIABLES
@@ -195,16 +195,16 @@ class CGAN(BaseModel):
 
         generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
         
-        #we must reshape for similarity
-        target_sentence = tf.reshape(target_sentence, [config['batch_size'], config['max_sentence_length']*config['embedding_size']])
-        generated_sentence = tf.reshape(generated_sentence, [config['batch_size'], config['max_sentence_length']*config['embedding_size']])
-        
-        #target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)[:,0]    
-
-        #initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        #_, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
-
-        pretrain_generator_loss = tf.reduce_sum(cosine_similarity(target_sentence, generated_sentence))
+        #we must slice and reshape for similarity
+        target_sentences = []
+        generated_sentences = []
+        for i in range(config['batch_size']):
+            target_sentences += [tf.reshape(target_sentence[extra_sentence_length[i,0]], [1, -1])]
+            generated_sentences += [tf.reshape(generated_sentence[extra_sentence_length[i,0]], [1, -1])]
+       
+        pretrain_generator_loss = tf.constant(0.0)
+        for i in range(config['batch_size']):
+            pretrain_generator_loss += tf.reduce_sum(cosine_similarity(target_sentence[i], generated_sentence[i]))
 
         #Generator
         with tf.name_scope('generator'):

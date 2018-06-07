@@ -64,15 +64,6 @@ class TextSource(object):
                 sentence_lengths[i,j] = sentence_length
         return padded_sentences, sentence_lengths
 
-#    def _separate_sentences(self, data):
-#        inputs = []
-#        for i in range(4):
-#            inputs.append([s[i] for s in data])
-#        inputs = tuple(inputs)
-#        # inputs  = [[s[k] for k in range(4)]  for s in data]  # First 4 sentences as input
-#        outputs = [s[4] for s in data]                       # Last (5th) sentence as output
-#        return inputs, outputs
-
     def _shuffle(self):
         return [self._data[i] for i in permutation(self.len_data)]
 
@@ -93,7 +84,7 @@ class TextSource(object):
             for i in range(self.len_data//self.batch_size):
                 self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
             if self.len_data % self.batch_size != 0:
-                logger.info("Number of entries is not multiple of batch size. {} hisotries have been not included in this epoch".format(self.len_data%self.batch_size))
+                logger.info("Number of entries is not multiple of batch size. {} stories have been not included in this epoch".format(self.len_data%self.batch_size))
 
     def get_batch(self):
         if not self._batched_data:
