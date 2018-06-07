@@ -34,9 +34,8 @@
 %\begin{abstract}
 %\end{abstract}
 
-Feel free to add more sections but those listed here are strongly recommended.
 \section{Introduction}
-You can keep this short. Ideally you introduce the task already in a way that highlights the difficulties  your method will tackle. \\
+The Story Cloze Task (SCT) is a recent dataset for machine comprehension. The test data consists of 5-sentence short stories with two different possible endings, and a label indicating which ending is the correct one. Stories are deliberately constructed such that determining the correct ending requires understanding the semantic content, a very challenging task for machines that humans can nonetheless complete with perfect accuracy. Another challenge of the dataset is that training data only includes correct endings, so it is not trivial to train a supervised model to solve the task.
 \section{Methodology}
 We attempted to reproduce results from a recent paper that uses a conditional generative adversarial network (CGAN) to solve the Story Cloze Task (SCT) (Wang et al, 2017). CGANs extend generative adversarial networks (GANs) (Goodfellow et al, 2014) to generate content conditioned on a context. The idea applied to SCT is to use a generatative neural network (the "generator") to generate fake story endings conditioned previous sentences in the story, and a discriminative neural network (the "discriminator") to discriminate between real and fake story endings. Trained together in an unsupervised and competitive manner using only stories with real endings, the generator and discriminator become increasingly good at generating and discriminating story endings. After training, the discriminator can then be used by itself to determine the real ending to a story. Thus, our approach is technically discriminitative but has a generative nature as it relies on a generative model during training.
 \section{Model}
