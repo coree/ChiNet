@@ -147,7 +147,7 @@ def load_results(clean_file='../datasets/results.clean', overwrite=False):
         data = pickle.load(f)
     return data
 
-def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=25000, write=True, use_prevocab=False):
+def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../datasets/train_stories.preprocessed', vocab_size=20000, write=True, use_prevocab=False):
     """ 
     Preprocess, tokenise and encode the data
     

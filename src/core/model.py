@@ -204,7 +204,7 @@ class BaseModel(object):
 
 
     # Load embeddings from file and call embedding matrix assign op
-    def load_embeddings(self, path, vocab_size=25000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
+    def load_embeddings(self, path, vocab_size=20000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
 
         logger.info("Loading external embeddings from {}".format(path))
 

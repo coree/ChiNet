@@ -189,15 +189,22 @@ class CGAN(BaseModel):
             temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(1e-6), dtype=tf.float32) 
 
         #GRAPHS 
+
         #Generator pretraining
-        target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)[:,0]
-            
+        target_sentence = tf.nn.embedding_lookup(embedding_weights, extra_sentence[:,0])
+
         generated_sentence, generated_sentence_length = generate_sentence(document_state=None, conditional=False, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
+        
+        #we must reshape for similarity
+        target_sentence = tf.reshape(target_sentence, [config['batch_size'], config['max_sentence_length']*config['embedding_size']])
+        generated_sentence = tf.reshape(generated_sentence, [config['batch_size'], config['max_sentence_length']*config['embedding_size']])
+        
+        #target_state = apply_embedding_and_sentence_rnn(sentences=extra_sentence, sentence_lengths=extra_sentence_length, sentence_rnn_cell=sentence_rnn_cell, sentence_n=1, config=config)[:,0]    
 
-        initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
-        _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
+        #initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
+        #_, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
 
-        pretrain_generator_loss = tf.reduce_sum(cosine_similarity(target_state, generated_state))
+        pretrain_generator_loss = tf.reduce_sum(cosine_similarity(target_sentence, generated_sentence))
 
         #Generator
         with tf.name_scope('generator'):
