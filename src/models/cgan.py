@@ -52,7 +52,7 @@ def gumbel_softmax(generator_state, config):
         logger.error('Could not load gumbel temperature in CPU, setting temperature to constant val')
         gumbel_t = temperature_min
 
-    gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
+    gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=1e-6, maxval=1.0)
     gumbel_g = -tf.log(-tf.log(gumbel_u))
     gumbel_p = tf.nn.softmax((tf.log(gumbel_pi) + gumbel_g) / gumbel_t)
     gumbel_y = tf.matmul(gumbel_p, embedding_weights)
