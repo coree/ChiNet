@@ -36,11 +36,12 @@
 
 Feel free to add more sections but those listed here are strongly recommended.
 \section{Introduction}
-You can keep this short. Ideally you introduce the task already in a way that highlights the difficulties  your method will tackle.
+You can keep this short. Ideally you introduce the task already in a way that highlights the difficulties  your method will tackle. \\
+Your idea. You can rename this section if you like. Early on in this section -- but not necessarily first -- make clear what category your method falls into: Is it generative? Discriminative? Is there a particular additional data source you want to use? \\
 \section{Methodology}
-Your idea. You can rename this section if you like. Early on in this section -- but not necessarily first -- make clear what category your method falls into: Is it generative? Discriminative? Is there a particular additional data source you want to use?
+We attempted to reproduce results from a recent paper that uses a conditional generative adversarial network (CGAN) to solve the Story Cloze Task (SCT) (Wang et al, 2017). CGANs extend generative adversarial networks (GANs) (Goodfellow et al, 2014) to generate content conditioned on a context. The idea applied to SCT is to use a generatative neural network (the "generator") to generate fake story endings conditioned previous sentences in the story, and a discriminative neural network (the "discriminator") to discriminate between real and fake story endings. Trained together in an unsupervised and competitive manner using only stories with real endings, the generator and discriminator become increasingly good at generating and discriminating story endings. After training, the discriminator can then be used by itself to determine the real ending to a story. Thus, our approach is technically discriminitative but has a generative nature as it relies on a generative model during training.
 \section{Model}
-The math/architecture of your model. This should formally describe your idea from above. If you really want to, you can merge the two sections. \textbf{Xander is on this}
+Our model consists of a sentence RNN, a document RNN, a generator RNN and a discriminator. The sentence RNN takes an embedded sentence as input and output a distilled representation of the sentence. Distilled sentences can then be fed to the document RNN to get a representation of the document context. The generator RNN takes in a document context and generates an embedded sentence. The discriminator takes as inputs a document context and a distilled sentence and outputs the probability that the distilled sentence is the real ending given the document context. Thus, the sentence and document RNNs are shared by the discriminator and generator, but for training we consider the document and sentence RNNs as part of the discriminator.
 
 We define our sentence RNN as
 $$ h^{s}_{i} = GRU(s_{i}; h^{s}_{i-1})$$
@@ -62,43 +63,45 @@ $$ t_{i} = relu(h^{g}_{i}W_{t}) + \epsilon $$
 $$ p_{i} = softmax(\frac{log(\pi_{i}) + g_{i}}{t_{i}}) $$
 $$ y_{i} = p_{i}W_{e}$$
 
-where $W_{d \rightarrow e}$ is a transformation matrix from document to embedding space, $W_{e}$ is the embedding matrix, $W_{t}$ is a matrix used to determine the temperature $t_{i}$ and $\epsilon$ is a small number to ensure that $t_{i}$ is positive. We continue to generate words until the stop-word is generated (we use $\pi_{i}$ to check) or the maximum sentence length is reached. We then stack the words to obtain the generated embedded sentence $\bar{s}$.
+where $W_{d \rightarrow e}$ is a transformation matrix from document to embedding space, $W_{e}$ is the embedding matrix, $W_{t}$ is a matrix used to determine the temperature $t_{i}$ and $\epsilon$ is a small number to ensure that $t_{i}$ is positive. We continue to generate words until the stop-word is generated (we use $\pi_{i}$ to check this) or the maximum sentence length is reached. We then stack the words to obtain the generated embedded sentence $\bar{s}$.
+
+We use attention to weigh to the inputs of the document RNN, based on their similarity to the target sentence. The weighted sentences are determined as
+$$ \tilde{r}^{s}_{i} = r^{s}_{i} \cdot a_{i} $$
+$$ a_{i} = r^{s}_{t}W_{A}(r^{s}_{i})^{T} $$
+where $r^{s}_{t}$ denotes the target sentence, $W_{A}$ is an attention matrix and $\cdot$ denotes the scalar product. We do not use attention when determining the document context for sentence generation, as this would provide information about the ground truth target sentence to the generator.\\ 
 
 The discriminator score is defined as 
 
 $$ D = \sigma(r^{d}W_{d \rightarrow s}(r^{s}_{t})^{T} )$$
 
-where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space and $\sigma$ is the sigmoid function. The discriminator assigns the score 1 to target sentences $r^{s}_{t}$ that it considers the most likely ending given the document context $r_{d}$ and 0 to the least likely. \\
-We use attention to assign weights to the inputs of the document RNN, based on their similarity to the target sentence. The weighted sentences are determined as
-$$ \tilde{r}^{s}_{i} = r^{s}_{i} \cdot a_{i} $$
-$$ a_{i} = r^{s}_{t}W_{A}(r^{s}_{i})^{T} $$
-where $r^{s}_{t}$ denotes the target sentence, $W_{A}$ is an attention matrix and $\cdot$ denotes the scalar product. We do not use attention when determining the document context for sentence generation, as this would provide information about the ground truth target sentence to the generator.\\ \\
+where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space and $\sigma$ is the sigmoid function. The discriminator assigns the score 1 to target sentences $r^{s}_{t}$ that are the most likely ending given the document context $r_{d}$ and 0 to the least likely. \\
+\\
 Now, given a story without the ending (distilled to a single document representation using the sentence and document RNNs) and two endings (both distilled to sentence representations using the sentence RNN), we can determine the most likely ending as having the highest discriminator score $D$. 
 
 \section{Training}
-What is your objective? How do you optimize it?
-\textbf{Xander is on this} \\
+
+We train our model by generating fake endings using the generator and passing them into the discriminator. The discriminator tries to discriminate real and fake endings, and the generator tries to trick the discriminator. The generator and discriminator are trained together, and we additionally pretrain the generator to improve performance.
 
 The discriminator loss is given by
 $$ L_{D} = -log(D) - log(1-\bar{D})$$
 where $D$ denotes the discriminator score of the ground truth sentence and $\bar{D}$ denotes the discriminator score of the generated sentence. The discriminator loss is minimized when the discriminator assigns a score 1 to the ground truth ending and a score 0 to the generated ending. \\
 The generator loss is given by
-$$ L_{G} = -log(\bar{D}) + similarity(r^{s}_{t}, r^{s}_{g}) $$
-$$ similarity(r^{s}_{t}, r^{s}_{g}) = 1 - \frac{r^{s}_{t} \cdot r^{s}_{g}}{\Vert r^{s}_{t} \Vert \Vert r^{s}_{g} \Vert} $$
-where $\bar{D}$ denotes the discriminator score of the generated sentence, $r^{s}_{t}$ denotes the sentence representation of the target sentence and $r^{s}_{t}$ denotes the target representation of the generated sentence. The second term in the loss is not traditionally used in GANs, but was added to improve the performance of the generator. The generator loss is minimized when the generator assigns a score 1 to the generated ending and the generated ending is maximally similar to the target ending. \\ \\
-During each epoch of training, the discriminator was trained for $n_{D}$ batches and the generator for $n_{G}$ batches, and the number of training batches were updated according to the ratio of the discriminator and generator losses:
+$$ L_{G} = -log(\bar{D}) + similarity(s, \bar{s}) $$
+$$ similarity(s, \bar{s}) = 1 - \frac{s \cdot \bar{s}}{\Vert s \Vert \Vert \bar{s} \Vert} $$
+where $\bar{D}$ denotes the discriminator score of the generated sentence, $s$ denotes the ground truth target and $\bar{s}$ denotes the generated target sentence. The second term in the loss is not traditionally used in GANs, but was added to improve the performance of the generator. The generator loss is minimized when the discriminator assigns a score 1 to the generated ending and the generated ending is maximally similar to the target ending. \\ \\
+For each training epoch, the discriminator is trained with $n_{D}$ batches and the generator with $n_{G}$ batches, and the number of training batches are updated according to the ratio of the discriminator and generator losses:
 $$ n_{D} = \frac{L_{D}}{L_{G}} $$ 
 $$ n_{G} = \frac{L_{G}}{L_{D}} $$
-The losses were averaged over the batches and the number of training batches were clipped to the range $[1,20]$. The initial number of training batches were set to 1.
-We added noise to the generated sentences during discriminator training after 20**** training epochs. It has been proposed that adding noise to the discriminator input can theoretically improve GAN training by increasing the support intersection of the generator and true data distributions.
+The losses are averaged over the batches and the number of training batches are clipped to the range $[1,20]$. The initial number of training batches is set to 1.
+We add noise to the generated sentences during discriminator training after 20**** training epochs. It has been proposed that adding noise to the discriminator input can theoretically improve GAN training by increasing the intersecting support of the generator and true data distributions****.
 
-To improve the performance of the generator, pretraining was performed. During pretraining, the generator was not conditioned on a document context, much like a standard GAN. Specifically, the generator hidden state was initialized as
+Pretraining is performed to improve the performance of the generator. During pretraining, the generator is not conditioned on a document context and instead only receives random noise, much like a traditional GAN. Specifically, the generator hidden state is initialized as
 $$ h^{g}_{0} = z $$
 $$ z \sim \mathcal{N}(0,1) $$
 and the pretrain generator loss is defined as
 $$ L_{G}^{pretrain} = similarity(r^{s}_{t}, r^{s}_{g}) $$
 
-We used the AdaDelta optimizer with $p=0.999$ and $\epsilon=1e-5$, a learning rate of $1e-3$ and batch size 32. For embedding, we used pretrained word2vec weights (link***) and did not update these during training. During data preprocessing, we added <BOS> and <EOS> tokens beginning and ends of sentences, padded sentences shorter than the max sentence length with <PAD> and replaced words not in our vocabulary with <UNK>. We used a vocabulary size of 25000**** and a max sentence length of 50. All trainable parameters were initialized using Xavier initialization. We used hidden state sizes of 128, 150 and 256 for the sentence, document and generator RNNs respectively.
+We use the AdaDelta optimizer with $p=0.999$ and $\epsilon=1e-5$. Learning rate is set to $1e-3$ and batch size to 32. For embedding, we use pretrained word2vec weights with embedding size 300 (link***) and do not update these during training. During data preprocessing, we add <BOS> and <EOS> tokens to the beginning and ending of sentences, pad sentences shorter than the max sentence length with <PAD> and replace words not in our vocabulary with <UNK>. We use a vocabulary size of 20000 and a max sentence length of 50. All trainable parameters are initialized using Xavier initialization. We use hidden state sizes of 128, 150 and 256 for the sentence, document and generator RNNs respectively.
 
 \section{Experiments}
 This {\bf must} at least include the accuracy of your method on the validation set.
