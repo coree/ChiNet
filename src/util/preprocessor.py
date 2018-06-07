@@ -183,7 +183,7 @@ def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../
             story.append(sentence)
         if not (progress+1) % 1000:
             t = (len(raw)-progress)*(time.time()-start_time)/progress
-            logger.info(' Estimated completion in {0:.0f}:{1:02.0f} min  - Actual completion {2}/{3} stories)'.format(
+            logger.info('Pt.1/2 Estimated completion in {0:.0f}:{1:02.0f} min  - Preprocessing 1/2 completion {2}/{3} stories)'.format(
                                                         t//60,  t%60,  # min, sec 
                                                         progress + 1, 
                                                         len(raw)))
@@ -193,14 +193,15 @@ def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../
         # generate vocabulary and write it to a pickle
         id_word, known_words, word_id = make_vocab(vocab, vocab_size)
     else:
-        _, word_id = load_vocab()
+        id_word, word_id = load_vocab()
         known_words = list(word_id.keys())
     #print('known_words', known_words)
     #print('id_word', id_word)
 
     # exchanges words with ids and replaces words that are not in vocab with the id of unk
     new_data = []
-    for story in data:
+    start_time = time.time()
+    for progress, story in enumerate(data):
         new_story = []
         for sentence in story:
             sentence = ['BOS'] + sentence
@@ -212,6 +213,12 @@ def preprocess_data(read_file='../datasets/train_stories.clean', write_file='../
                     sentence[idx] = word_id[word]
             new_story.append(sentence)
         new_data.append(new_story)
+        if not (progress+1) % 1000:
+            t = (len(raw)-progress)*(time.time()-start_time)/progress
+            logger.info('Pt.2/2 Estimated completion in {0:.0f}:{1:02.0f} min  - Preprocessing 2/2 completion {2}/{3} stories)'.format(
+                                                        t//60,  t%60,  # min, sec 
+                                                        progress + 1, 
+                                                        len(data)))
     if write:
         write_processed_data(new_data, write_file)
     return new_data, word_id, id_word
