@@ -27,7 +27,7 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(args.v.upper())
     gpu_options = tf.GPUOptions(allow_growth=True)
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-    # sess = tf_debug.LocalCLIDebugWrapperSession(sess) # -> For debugging
+    # sess = tf_debug.LocalCLIDebugWrapperSession(sess)  # -> For debugging
 
     with sess as session:  # tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as session:
         # session.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
@@ -85,12 +85,12 @@ if __name__ == '__main__':
         model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin", 
                               binary=True)
 
-        model.pretrain(
-            num_epochs=10,
-        )
+        # model.pretrain(
+        #     num_epochs=0,
+        # )
 
         model.train(
-            num_epochs=50,
+            num_epochs=10,
         )
 
         predictions = model.evaluate(
@@ -101,6 +101,7 @@ if __name__ == '__main__':
                 )
         )
 
+        model.initialize_if_not()
         target = load_results(overwrite=True)
         print(target)
         print(predictions)

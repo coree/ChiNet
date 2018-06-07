@@ -164,11 +164,11 @@ class BaseModel(object):
 
     def _build_optimizers(self):
         """Based on learning schedule, create optimizer instances."""
-        self._optimize_ops = []
+        self._optimize_ops = {}
         all_trainable_variables = tf.trainable_variables()
         logger.debug('All trainable variables : {}'.format(all_trainable_variables))
         for spec in self._learning_schedule:
-            optimize_ops = []
+            optimize_ops = {}
             loss_terms = spec['loss_terms_to_optimize']
             assert isinstance(loss_terms, dict)
             for loss_term_key, prefixes in loss_terms.items():
@@ -198,8 +198,8 @@ class BaseModel(object):
                     var_list=variables_to_train,
                     name='optimize_%s' % loss_term_key,
                 )
-                optimize_ops.append(optimize_op)
-            self._optimize_ops.append(optimize_ops)
+                optimize_ops[loss_term_key] = optimize_op
+            self._optimize_ops = optimize_ops  # TODO Changed to single _learning_schedule... need to clean code
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
 
 
@@ -273,11 +273,11 @@ class BaseModel(object):
             feed_dict[self.use_batch_statistics] = True
 
             fetches = {}
-            fetches['optimize_ops'] = self._optimize_ops[0][0]  # TODO Really ugly fix
-            #TODO pretrain loss?
+            fetches['optimize_ops'] = self._optimize_ops['pretrain_loss']
+            fetches['lss'] = self.loss_terms['train']['discriminator_loss']
 
             #summary_ops = self.summary.get_ops(mode='train')
-            # summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+            # summary_ops = self.summary.get_ops(mode='train')
             # summary_clean(summary_ops, 'generator')
             # if len(summary_ops) > 0:
             #     fetches['summaries'] = summary_ops
@@ -291,6 +291,7 @@ class BaseModel(object):
 
             # Print progress
             to_print = '%07d> ' % current_step
+            to_print += 'Pretrain loss = {}'.format(outcome['lss'])
             # to_print += ', '.join(['%s = %f' % (k, v)
             #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
             self.time.log_every('pretrain_iteration', to_print, seconds=2)
@@ -354,11 +355,11 @@ class BaseModel(object):
             #discriminator training
             for substep in range(num_steps_discriminator):
                 fetches = {}
-                fetches['optimize_ops'] = self._optimize_ops[0][2]  # TODO Really ugly fix
+                fetches['optimize_ops'] = self._optimize_ops['discriminator_loss']  
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
                 
                 #TODO fix summaries
-                summary_ops = self.summary.get_ops(mode='train')  ## TODO Temporary fix
+                summary_ops = self.summary.get_ops(mode='train')
                 summary_clean(summary_ops, 'discriminator') 
 
                 if len(summary_ops) > 0:
@@ -386,11 +387,11 @@ class BaseModel(object):
             #generator training
             for substep in range(num_steps_generator):
                 fetches = {} 
-                fetches['optimize_ops'] = self._optimize_ops[0][1]  # TODO Really ugly fix
+                fetches['optimize_ops'] = self._optimize_ops['generator_loss']
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
                 #TODO fix summaries
-                summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+                summary_ops = self.summary.get_ops(mode='train')
                 summary_clean(summary_ops, 'generator') 
                 if len(summary_ops) > 0:
                   fetches['summaries'] = summary_ops
@@ -406,14 +407,20 @@ class BaseModel(object):
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
-
+                input('sthap')
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
             
             #update num_steps_discriminator and num_steps_generator
             #clip losses to prevent negative losses messing up ratio
+            if np.isnan(generator_loss):
+                generator_loss = 1e3
+                logger.debug(generator_losses)
+            if np.isnan(discriminator_loss):
+                logger.debug(discriminator_losses)
+                discriminator_loss = 1e3
             loss_ratio = np.clip(discriminator_loss, a_min=1e-6, a_max=None) / np.clip(generator_loss, a_min=1e-6, a_max=None)
-            num_steps_discriminator = int(np.clip(initial_steps*(1/loss_ratio), min_steps, max_steps))
+            num_steps_discriminator = int(np.clip(initial_steps*(1/(loss_ratio + 1e-20)), min_steps, max_steps))
             num_steps_generator = int(np.clip(initial_steps*loss_ratio, min_steps, max_steps))
             
             self.time.end('train_iteration')
@@ -452,7 +459,7 @@ class BaseModel(object):
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
         
-        self.initialize_if_not()
+        # self.initialize_if_not()
         
         assert data_source.testing == True
         data_source._generate_batches()
