@@ -275,7 +275,7 @@ class BaseModel(object):
 
             fetches = {}
             fetches['optimize_ops'] = self._optimize_ops['pretrain_loss']
-            fetches['lss'] = self.loss_terms['train']['discriminator_loss']
+            fetches['lss'] = self.loss_terms['train']['pretrain_loss']
 
             #summary_ops = self.summary.get_ops(mode='train')
             # summary_ops = self.summary.get_ops(mode='train')
