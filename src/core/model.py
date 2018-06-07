@@ -262,9 +262,13 @@ class BaseModel(object):
         for current_step in range(initial_step, num_steps):
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
-            feed_dict = dict()
-            feed_dict[self.inputs['train']['extra_sentence']] = sentences[:,-1:] #only target sentence
-            feed_dict[self.inputs['train']['extra_sentence_length']] = sentence_lengths[:,-1:]
+
+            extra_sentence = np.expand_dims(sentences[:, -1, :], axis=1)
+            extra_sentence_length = np.expand_dims(sentence_lengths[:, -1], axis=1)
+            
+            feed_dict = {}
+            feed_dict[self.inputs['train']['extra_sentence']] = extra_sentence #only target sentence
+            feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
 
@@ -273,10 +277,10 @@ class BaseModel(object):
             #TODO pretrain loss?
 
             #summary_ops = self.summary.get_ops(mode='train')
-            summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
-            summary_clean(summary_ops, 'generator') 
-            if len(summary_ops) > 0:
-                fetches['summaries'] = summary_ops
+            # summary_ops = self.summary.get_ops(mode='train')  # TODO Temporary fix
+            # summary_clean(summary_ops, 'generator')
+            # if len(summary_ops) > 0:
+            #     fetches['summaries'] = summary_ops
 
             self.time.start('pretrain_iteration', average_over_last_n_timings=100)
             outcome = self._tensorflow_session.run(
