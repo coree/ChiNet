@@ -2,6 +2,7 @@
 from datasources import TextSource
 from util.preprocessor import load_vocab, load_results
 from .summary_manager import summary_clean
+from util.submission_writer import write_submission
 
 import os
 import time
@@ -108,7 +109,7 @@ class BaseModel(object):
 
             # Build model
             raw_outputs, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode)
-            output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all 
+            output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all
 
             # Record important tensors
             # self.output_tensors[mode] = output_tensors
@@ -142,7 +143,7 @@ class BaseModel(object):
 
             self._tester._post_model_build()  # Create copy ops to be run before every test run
         self.summary._post_model_build()  # Merge registered summary operations
-  
+
     def build_model(self, data_sources: Dict[str, TextSource], mode: str):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
@@ -212,7 +213,7 @@ class BaseModel(object):
         if not vocab_size == len(vocab):
             logger.warning(' Asked for a vocabulary size of {0} but vocabulary file has {1} entries. Canging to {1}'.format(vocab_size, len(vocab)))
             vocab_size = len(vocab)
-        model = models.KeyedVectors.load_word2vec_format(path, binary=binary)  
+        model = models.KeyedVectors.load_word2vec_format(path, binary=binary)
 
         embedding_size = model.vector_size  # Embedding size given by the loaded module
         logger.info("Embedding size of {}".format(embedding_size))
@@ -249,7 +250,7 @@ class BaseModel(object):
         #generate sentence from random noise
         #sample target sentence
         #optimize generator loss using distance between target sentence and generated sentence (TODO what distance metric?)
-        
+
         if num_steps is None:
             num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
             num_steps = int(num_epochs * num_batches)
@@ -257,15 +258,15 @@ class BaseModel(object):
 
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
-        
-        logger.info(' * Number of steps: {}'.format(num_steps)) 
+
+        logger.info(' * Number of steps: {}'.format(num_steps))
         for current_step in range(initial_step, num_steps):
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
 
             extra_sentence = np.expand_dims(sentences[:, -1, :], axis=1)
             extra_sentence_length = np.expand_dims(sentence_lengths[:, -1], axis=1)
-            
+
             feed_dict = {}
             feed_dict[self.inputs['train']['extra_sentence']] = extra_sentence #only target sentence
             feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
@@ -326,9 +327,9 @@ class BaseModel(object):
         #Generator training (repeat n_step_g)
         #sample input sentences and target sentence
         #generate sentence from random noise and input sentences
-        #compute discriminator score for generated sentence 
+        #compute discriminator score for generated sentence
         #optimize generator loss using discriminator score [GAN HACK also use similarity to target sentence in loss]
-        
+
         #[GAN HACK update n_step_d and n_step_g using discriminator and generator losses]
 
         if num_steps is None:
@@ -347,26 +348,26 @@ class BaseModel(object):
         num_steps_generator = initial_steps
 
         discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many steps #TODO tweak
- 
-        logger.info(' * Number of steps: {}'.format(num_steps)) 
+
+        logger.info(' * Number of steps: {}'.format(num_steps))
         for current_step in range(initial_step, num_steps):
             self.time.start('train_iteration', average_over_last_n_timings=100)
             discriminator_losses = []
             #discriminator training
             for substep in range(num_steps_discriminator):
                 fetches = {}
-                fetches['optimize_ops'] = self._optimize_ops['discriminator_loss']  
+                fetches['optimize_ops'] = self._optimize_ops['discriminator_loss']
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
-                
+
                 #TODO fix summaries
                 summary_ops = self.summary.get_ops(mode='train')
-                summary_clean(summary_ops, 'discriminator') 
+                summary_clean(summary_ops, 'discriminator')
 
                 if len(summary_ops) > 0:
                   fetches['summaries'] = summary_ops
 
                 iteration_threshold_reached = (discriminator_iteration_threshold < current_step)
-                
+
                 sentences, sentence_lengths = self._train_data['real'].get_batch()
                 feed_dict = dict()
                 feed_dict[self.inputs['train']['sentences']] = sentences
@@ -382,17 +383,17 @@ class BaseModel(object):
 
                 discriminator_losses += [outcome['losses']]
             discriminator_loss = np.mean(discriminator_losses)
-            
+
             generator_losses = []
             #generator training
             for substep in range(num_steps_generator):
-                fetches = {} 
+                fetches = {}
                 fetches['optimize_ops'] = self._optimize_ops['generator_loss']
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
                 #TODO fix summaries
                 summary_ops = self.summary.get_ops(mode='train')
-                summary_clean(summary_ops, 'generator') 
+                summary_clean(summary_ops, 'generator')
                 if len(summary_ops) > 0:
                   fetches['summaries'] = summary_ops
 
@@ -410,7 +411,7 @@ class BaseModel(object):
                 input('sthap')
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
-            
+
             #update num_steps_discriminator and num_steps_generator
             #clip losses to prevent negative losses messing up ratio
             if np.isnan(generator_loss):
@@ -422,7 +423,7 @@ class BaseModel(object):
             loss_ratio = np.clip(discriminator_loss, a_min=1e-6, a_max=None) / np.clip(generator_loss, a_min=1e-6, a_max=None)
             num_steps_discriminator = int(np.clip(initial_steps*(1/(loss_ratio + 1e-20)), min_steps, max_steps))
             num_steps_generator = int(np.clip(initial_steps*loss_ratio, min_steps, max_steps))
-            
+
             self.time.end('train_iteration')
 
             # Print progress
@@ -452,15 +453,15 @@ class BaseModel(object):
 
     def evaluate(self, data_source):
         #Pseudocode
-       
+
         #Predict correct story endings (repeat for every test data entry)
 
         #sample inputs sentences and two target sentences
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
-        
+
         # self.initialize_if_not()
-        
+
         assert data_source.testing == True
         data_source._generate_batches()
         results = []
@@ -472,7 +473,7 @@ class BaseModel(object):
 
             extra_sentence = np.expand_dims(sentences[:, -1, :], axis=1)
             sentences = sentences[:,:-1,:]
-            
+
             extra_sentence_length = np.expand_dims(sentence_lengths[:, -1], axis=1)
             sentence_lengths = sentence_lengths[:, :-1]
 
@@ -491,8 +492,10 @@ class BaseModel(object):
             )
             results.append(outcome)
         results = np.array(results).flatten()[:data_source.len_data]
+        write_submission(results)
+
         return results
-        #TODO return or write to file here?
+
 
     def validation_accuracy(self):
         predictions = self.evaluate(self.validate_source)
