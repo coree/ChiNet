@@ -10,12 +10,13 @@ from typing import Dict
 logger = logging.getLogger(__name__)
 
 
+#0 if completely similar, otherwise (0,2]
 #cosine similarity
 def cosine_similarity(x, y):
     """Computes the cosine similarity between x and y"""
     x = tf.nn.l2_normalize(x, 1)  
     y = tf.nn.l2_normalize(y, 1)
-    return tf.matmul(tf.expand_dims(x, axis=1), tf.expand_dims(y, axis=2))
+    return 1 - tf.matmul(tf.expand_dims(x, axis=1), tf.expand_dims(y, axis=2))
 
 #discrimiantor score from input document state and target sentence state
 def score(document_state, target_sentence_state):
@@ -38,8 +39,8 @@ def gumbel_softmax(generator_state, config):
     with tf.variable_scope("embedding", reuse=True):
         embedding_weights = tf.get_variable("embedding_weights")
 
-    temperature_min = 0.001
-    temperature_max = 1000
+    temperature_min = 1e-6
+    temperature_max = 1e6
 
     gumbel_pi = tf.nn.softmax(tf.matmul(tf.matmul(generator_state, generator_to_embedding_weights), tf.transpose(embedding_weights)))
 
@@ -49,7 +50,7 @@ def gumbel_softmax(generator_state, config):
             gumbel_t = tf.clip_by_value(gumbel_t, temperature_min, temperature_max)
     except:
         logger.error('Could not load gumbel temperature in CPU, setting temperature to constant val')
-        gumbel_t = 0.001
+        gumbel_t = temperature_min
 
     gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
     gumbel_g = -tf.log(-tf.log(gumbel_u))
@@ -57,36 +58,6 @@ def gumbel_softmax(generator_state, config):
     gumbel_y = tf.matmul(gumbel_p, embedding_weights)
     
     return gumbel_y, gumbel_pi[:, config['stop_word_index']]
-
-
-def gumbel_softmax_test(logits, config):
-    epsilon = 1e-20  # Avoid crashing when log()
-
-    '''   As apparently we (at least I) are not able to keep the temperature at a reasonable value (aka non-nan), 
-     I wonder if aren't we able to use just a single temperature for the whole distribution (I know it's 
-     different) from the paper but still... Also, I'm not confident of the "de-embeding part", but if the 
-     point of the Gumball softmax is to get rid of the argmax, why don't we apply the typical approach for
-     word classification and just relax the argmax, so getting rid of the weird "getting from generator space
-     to the embedding space", and just avoid it. In any case, I left the original function up there, in case.'''
-    # TODO: On how to set the temperature, why don't we slowly reduce it every many ops. Imagine it as a ε-greedy 
-    # approach (which in part, kinda is).
-    temperature = 0.001  # Arbitrarily choosen atm
-
-    gumbel_u = tf.random_uniform(shape=[config['batch_size'], config['vocab_size']], minval=0.0, maxval=1.0)
-    gumbel_u = -tf.log(-tf.log(gumbel_u + epsilon) + epsilon)
-
-    pi = logits + gumbel_u
-    softmax = tf.nn.softmax(pi / temperature)
-
-    ''' TODO NEED TO CHECK THE "HARD" FORMULATION/APPLICATION -> SHOUD RETURN ONE-HOT
-    hard_output = False
-    if hard_output:
-        k = tf.shape(logits)[-1]
-        #y_hard = tf.cast(tf.one_hot(tf.argmax(y,1),k), y.dtype)
-        hard_softmax = tf.cast(tf.equal(softmax, tf.reduce_max(softmax, 1, keep_dims=True)), softmax.dtype)
-        softmax = tf.stop_gradient(hard_softmax - softmax) + softmax
-    '''
-    return softmax
 
 #generator conditional sentence generation
 def generate_sentence(document_state, generator_rnn_cell, embedded_start_word, config, conditional=True):
@@ -164,8 +135,8 @@ class CGAN(BaseModel):
 
         #PARAMETERS TODO config from higher level
         config = dict()
-        config['sentence_hidden_size'] = 64
-        config['document_hidden_size'] = 128
+        config['sentence_hidden_size'] = 128
+        config['document_hidden_size'] = 150
         config['generator_hidden_size'] = 256
         config['embedding_size'] = 300
         config['max_sentence_length'] = 50
@@ -215,7 +186,7 @@ class CGAN(BaseModel):
             generator_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['generator_hidden_size'], activation=config['rnn_activation'], name="generator_cell")
             generator_to_embedding_weights = tf.get_variable(name="generator_to_embedding_weights", shape=[config['generator_hidden_size'], config['embedding_size']], dtype=tf.float32, initializer=config['initializer'])
             temperature_weights = tf.get_variable(name="temperature_weights", shape=[config['generator_hidden_size'],1], dtype=tf.float32, initializer=config['initializer']) 
-            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(0.0001), dtype=tf.float32) 
+            temperature_epsilon = tf.get_variable(name="temperature_epsilon", shape=[], initializer=tf.constant_initializer(1e-6), dtype=tf.float32) 
 
         #GRAPHS 
         #Generator pretraining
@@ -226,7 +197,7 @@ class CGAN(BaseModel):
         initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
         _, generated_state = tf.nn.dynamic_rnn(sentence_rnn_cell, inputs=generated_sentence, sequence_length=generated_sentence_length, initial_state=initial_state, dtype=tf.float32, scope="sentence")
 
-        pretrain_generator_loss = tf.reduce_sum(-cosine_similarity(target_state, generated_state))
+        pretrain_generator_loss = tf.reduce_sum(cosine_similarity(target_state, generated_state))
 
         #Generator
         with tf.name_scope('generator'):
@@ -244,8 +215,8 @@ class CGAN(BaseModel):
         
             score_generated = score(document_state, generated_state) 
 
-            #generator_loss = tf.reduce_sum(-tf.log(score_generated) - cosine_similarity(target_state, generated_state))
-            generator_loss = tf.reduce_sum(-tf.log(score_generated))
+            generator_loss = tf.reduce_sum(-tf.log(score_generated) + cosine_similarity(target_state, generated_state))
+            #generator_loss = tf.reduce_sum(-tf.log(score_generated))
 
         #Discriminator
         with tf.name_scope('discriminator'):

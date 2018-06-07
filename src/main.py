@@ -85,13 +85,12 @@ if __name__ == '__main__':
         model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin", 
                               binary=True)
 
-        #TODO pretrain
         model.pretrain(
-            num_steps=10,
+            num_epochs=10,
         )
 
         model.train(
-            num_epochs=10,
+            num_epochs=50,
         )
 
         predictions = model.evaluate(

@@ -189,10 +189,10 @@ class BaseModel(object):
                 except:
                     raise NameError('Obvious fail building {}'.format(loss_term_key))
 
-                optimize_op = tf.train.AdamOptimizer(
+                optimize_op = tf.train.AdadeltaOptimizer(
                     learning_rate=spec['learning_rate'],
-                    # beta1=0.9,
-                    # beta2=0.999,
+                    rho=0.999,
+                    epsilon=1e-5
                 ).minimize(
                     loss=self.loss_terms['train'][loss_term_key],
                     var_list=variables_to_train,
@@ -338,15 +338,15 @@ class BaseModel(object):
         initial_step = self.checkpoint.load_all()
         current_step = initial_step
 
+        #individual training steps for discriminator and generator
         max_steps = 200
-        min_steps = 1 #allow 0? TODO
+        min_steps = 1
         initial_steps = 1
-
-        discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many iterations
-
         num_steps_discriminator = initial_steps
         num_steps_generator = initial_steps
-        
+
+        discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many steps #TODO tweak
+ 
         logger.info(' * Number of steps: {}'.format(num_steps)) 
         for current_step in range(initial_step, num_steps):
             self.time.start('train_iteration', average_over_last_n_timings=100)
@@ -445,13 +445,15 @@ class BaseModel(object):
 
     def evaluate(self, data_source):
         #Pseudocode
-        self.initialize_if_not()
+       
         #Predict correct story endings (repeat for every test data entry)
 
         #sample inputs sentences and two target sentences
         #compute discriminator scores for both target sentences
         #predict whether first or second target sentence was right sentence using discriminator scores
-        #write scores to file #TODO how much of this to do here?
+        
+        self.initialize_if_not()
+        
         assert data_source.testing == True
         data_source._generate_batches()
         results = []
