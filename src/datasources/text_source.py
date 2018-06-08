@@ -77,7 +77,7 @@ class TextSource(object):
             difference = self.batch_size - (self.len_data % self.batch_size)
             last_elem = shuffled_data[self.batch_size*(i+1):] + [[[0] for _ in range(len(shuffled_data[0]))]]*difference
             self._batched_data.append(last_elem)
-            logger.info('Returning test batch')
+            logger.debug('Returning test batch')
         else:
             shuffled_data = self._shuffle()
             self._batched_data = []

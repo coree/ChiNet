@@ -77,7 +77,7 @@ if __name__ == '__main__':
             },
             validation_data_source=TextSource(
                 batch_size,
-                file_path='../datasets/cloze_test_val.csv',
+                file_path='../datasets/cloze_val.csv',  # Validation set
                 testing=True,
             ),
         )
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         predictions = model.evaluate(
             TextSource(
                     batch_size,
-                    file_path='../datasets/cloze_test_val.csv',
+                    file_path='../datasets/cloze_test.csv',  # Test set
                     testing=True,
                 )
         )
