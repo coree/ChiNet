@@ -74,6 +74,7 @@ class TextSource(object):
         if self.testing or self.submission:
             shuffled_data = self._data[:]
             self._batched_data = []
+            i = 0
             for i in range(self.len_data//self.batch_size):
                 self._batched_data.append(shuffled_data[self.batch_size*i:self.batch_size*(i+1)])
             difference = self.batch_size - (self.len_data % self.batch_size)
