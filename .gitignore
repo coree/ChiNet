@@ -3,6 +3,7 @@ datasets
 
 # Outputs folder
 outputs/
+submission.csv
 
 # Temporary files
 *.pyc

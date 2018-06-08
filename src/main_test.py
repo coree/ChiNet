@@ -75,23 +75,11 @@ if __name__ == '__main__':
                     file_path='../datasets/train_stories.csv',
                 ),
             },
-            #validation_data_source=TextSource(
-            #    batch_size,
-            #    file_path='../datasets/cloze_val.csv',  # Validation set
-            #    testing=True,
-            #),
         )
 
         model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin",
                               binary=True)
 
-        #model.pretrain(
-        #   num_epochs=1,
-        #)
-
-        #model.train(
-        #    num_epochs=5,
-        #)
 
         model.initialize_if_not()
         predictions = model.evaluate(
