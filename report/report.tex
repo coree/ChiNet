@@ -108,7 +108,7 @@ $$ L_{G}^{pretrain} = similarity(s, \bar{s}) $$
 We use the AdaDelta optimizer with $p=0.999$ and $\epsilon=10^{-5}$. Learning rate is set to $10^{-3}$ and batch size to 32. For embedding, we use pretrained word2vec weights with embedding size 300 and do not update these during training. During data preprocessing, we add <BOS> and <EOS> tokens to the beginning and ending of sentences, pad sentences shorter than the max sentence length with <PAD> and replace words not in our vocabulary with <UNK>. We use a vocabulary size of 20000 and a max sentence length of 50. All trainable parameters are initialized using Xavier initialization. We use hidden state sizes of 128, 150 and 256 for the sentence, document and generator RNNs respectively.
 
 \section{Experiments}
-
+We were not able to reproduce the results of the original paper by Wang et al. The accuracy of our model on the validation dataset was significantly lower than what was reported in the paper and also significantly lower than the Deep Structured Semantic Model (DSSM), which is the best performing model in the SCT dataset paper. Our results are comparable to that of a random model that always determines the correct ending as the first one, which is disappointing.
 \begin{center}
 \captionof{table}{Validation accuracy model comparison} 
 \begin{tabular}{ | c c c c |}
@@ -118,8 +118,14 @@ Random & DSSM & CGAN (Wang et al.) & CGAN (Ours) \\
  \hline
 \end{tabular} 
 \par
-Comparison of accuracy on the validation dataset for random choice, Deep Structured Semantic Model (DSSM), CGAN from the paper we attempted to reproduce and our CGAN.
+Comparison of accuracy on the SCT validation dataset for different models
 \end{center}
+
+It is unclear exactly why we were not able to reproduce the results. Training GANs is known to be challenging, and we would expect extending GANs to conditional text generation to exacerbate the issue. We observed that during training, the discriminator loss would eventually decrease significantly while the generator loss increased, which is a common issue in GAN training where the discriminator outcompetes the generator. The behaviour persisted despite adding noise to the discriminator inputs around the time when the discriminator loss started to drop.
+
+[loss image] 
+
+We mostly used the same hyperparameters as the original paper, with exceptions of an embedding size of 300 instead of 100, clipping the number of discriminator and generator training batches at 40 instead of 20, and using Xavier initialization for trainable variables instead of fixing their largest singular values to 1.0. It was unclear what loss they used for pretraining the generator, but we decided that negative cosine similarity was a sensible candidate.  We observed a significant drop in the pretraining generator loss which seemed to converge to a minimum, so we assumed that this was not the issue.
 
 \section{Conclusion}
 
