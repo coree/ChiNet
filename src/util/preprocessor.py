@@ -131,7 +131,7 @@ def preprocess_file(file_path='../datasets/train_stories.csv',
             pickle.dump(data, f)
 
 
-def preprocess_results(file_path='../datasets/cloze_test_val.csv',
+def preprocess_results(file_path='../datasets/cloze_val.csv',
                          clean_file='../datasets/results.clean'):
     """ Preprocess the csv into a pickled python list"""
     with open(file_path, 'r', encoding='utf-8') as f:
