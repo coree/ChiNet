@@ -284,7 +284,8 @@ class BaseModel(object):
             #     fetches['summaries'] = summary_ops
             initial_loss = None
             if initial_loss:
-                sub_its = int(30*(updated_loss/initial_loss))
+                sub_its = int(30*(updated_loss/initial_loss)**2)
+                sub_its = 30 if sub_its > 30 else sub_its
             for _ in range(30):
                 self.time.start('pretrain_iteration', average_over_last_n_timings=100)
                 outcome = self._tensorflow_session.run(
@@ -414,7 +415,7 @@ class BaseModel(object):
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
-                input('sthap')
+                
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
 
