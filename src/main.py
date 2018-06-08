@@ -106,6 +106,7 @@ if __name__ == '__main__':
                 batch_size,
                 file_path='../datasets/test_nlu18_utf-8.csv',  # Submission test set
                 submission=True,
+                testing=False,
             ),
             write_file=True
         )

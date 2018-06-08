@@ -38,7 +38,7 @@ class BaseModel(object):
                  validation_data_source = None,
                  test_losses_or_metrics: str = None):
         """Initialize model with data sources and parameters."""
-        
+
         self._tensorflow_session = tensorflow_session
         self._train_data = train_data
         self._test_data = test_data
@@ -415,12 +415,12 @@ class BaseModel(object):
                 feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
-                
+
                 outcome = self._tensorflow_session.run(
                     fetches=fetches,
                     feed_dict=feed_dict
                 )
-                
+
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
 
@@ -476,7 +476,10 @@ class BaseModel(object):
 
         # self.initialize_if_not()
 
-        assert data_source.testing == True
+        if write_file:
+            assert data_source.submission==True
+        else:
+            assert data_source.testing == True
         data_source._generate_batches()
         results = []
         for data_points in range(data_source.num_batches):
