@@ -313,7 +313,7 @@ class BaseModel(object):
                 self.checkpoint.save_all(current_step)
 
         # Save final weights
-        self.checkpoint.save_all(current_step)
+        self.checkpoint.save_all(1)  # It's pretraining so we do not want to save this
 
     def train(self, num_epochs=None, num_steps=None):
         #Psudocode
