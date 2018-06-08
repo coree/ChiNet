@@ -8,8 +8,7 @@
 % \usepackage[nonatbib]{nips_2017}
 
 \usepackage[final]{nips_2017}
-
-
+% \usepackage{natbib}
 \usepackage[utf8]{inputenc} % allow utf-8 input
 \usepackage[T1]{fontenc}    % use 8-bit T1 fonts
 \usepackage{hyperref}       % hyperlinks
@@ -18,6 +17,9 @@
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
+
+
+\bibliographystyle{unsrtnat} % or try abbrvnat or unsrtnat
 
 % Choose a title for your submission
 \title{ChiNet}
@@ -104,6 +106,8 @@ We use the AdaDelta optimizer with $p=0.999$ and $\epsilon=10^{-5}$. Learning ra
 \section{Experiments}
 This {\bf must} at least include the accuracy of your method on the validation set.
 \section{Conclusion}
-You can keep this short, too.
+
+
+\bibliography{report}
 
 \end{document}
