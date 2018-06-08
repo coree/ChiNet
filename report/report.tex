@@ -43,7 +43,7 @@ The Story Cloze Task (SCT) (\cite{2016arXiv160401696M}) is a recent dataset for 
 \section{Methodology}
 We attempted to reproduce results from a recent paper (\cite{ijcai2017-576}) that uses a conditional generative adversarial network (CGAN) (\cite{2014arXiv1411.1784M}) to solve the SCT. CGANs extend generative adversarial networks (GANs) (\cite{2014arXiv1406.2661G}) to generate data conditioned on a context. The idea applied to SCT is to use a generatative neural network (the "generator") to generate fake story endings conditioned on previous sentences in the story, and a discriminative neural network (the "discriminator") to discriminate between real and fake story endings. Trained together in a competitive and unsupervised manner using only stories with real endings, the generator and discriminator become increasingly good at generating and discriminating story endings. After training, the discriminator can then be used by itself to determine the real ending to a story. Thus, our approach is technically discriminitative, but has a generative nature as it relies on a generative model during training.
 \section{Model}
-Our CGAN model consists of a sentence recurrent neural network (RNN), a document RNN, a generator RNN and a discriminator. The sentence RNN takes an embedded sentence as input and outputs a distilled representation of the sentence. Distilled sentences can then be fed to the document RNN to get a representation of the document context. The generator RNN takes in a document context and generates an embedded sentence. The discriminator takes as inputs a document context and a distilled sentence and outputs the probability that the distilled sentence is the real ending given the document context. Thus, the sentence and document RNNs are shared by the discriminator and generator, but for training we consider the document and sentence RNNs as part of the discriminator.
+Our CGAN model consists of a sentence recurrent neural network (RNN), a document RNN, a generator RNN and a discriminator. The sentence RNN takes an embedded sentence as input and outputs a distilled representation of the sentence. Distilled sentences can be fed to the document RNN to get a representation of the document context. The generator RNN takes in a document context and generates an embedded sentence. The discriminator takes as inputs a document context and a distilled sentence and outputs the probability that the distilled sentence is the real ending given the document context. Thus, the sentence and document RNNs are shared by the discriminator and generator, but for training we consider the document and sentence RNNs as part of the discriminator.
 We define our sentence RNN as
 $$ h^{s}_{i} = GRU(s_{i}; h^{s}_{i-1})$$
 where $s$ denotes the embedded sentence and $GRU$ denotes a gated recurrent unit (\cite{DBLP:journals/corr/ChoMGBSB14}), a variant of long short-term memory (LSTM) (\cite{articffle}). We denote the final hidden state of the sentence RNN as $r^{s}$.
@@ -66,7 +66,7 @@ $$ t_{i} = ReLu(h^{g}_{i}W_{t}) + \epsilon $$
 $$ p_{i} = softmax(\frac{log(\pi_{i}) + g_{i}}{t_{i}}) $$
 $$ y_{i} = p_{i}W_{e}$$
 
-where $W_{d \rightarrow e}$ is a transformation matrix from document space to embedding space, $W_{e}$ is an embedding matrix, $W_{t}$ is a matrix used to determine the temperature $t_{i}$, $\epsilon$ is a small number to ensure that $t_{i}$ is positive and $ReLu$ is the rectifier function. With large $t_{i}$ we get an embeddings that are the average of all embedded words in the vocabulary, and as $t_{i}$ approaches 0 we get exact embeddings. We continue to generate words until the <STOP> token is generated (we threshold $\pi_{i}$ at 0.5 to check) or the maximum sentence length is reached. We then stack the words to obtain the generated embedded sentence $\bar{s}$.
+where $W_{d \rightarrow e}$ is a transformation matrix from document space to embedding space, $W_{e}$ is an embedding matrix, $W_{t}$ is a matrix used to determine the temperature $t_{i}$, $\epsilon$ is a small number to ensure that $t_{i}$ is positive and $ReLu$ is the rectifier function. With large $t_{i}$ we get an average embedding over the entire vocabulary, and as $t_{i}$ approaches 0 we get an embedding corresponding to a specific word. We continue to generate words until the <STOP> token is generated (we threshold $\pi_{i}$ at 0.5 to check) or the maximum sentence length is reached. We then stack the words to obtain the generated embedded sentence $\bar{s}$.
 
 We use attention (\cite{P16-1122}) to weigh to the inputs of the document RNN, based on their similarity to the ending sentence. The weighted sentences are determined as
 $$ \tilde{r}^{s}_{i} = r^{s}_{i} \cdot a_{i} $$
@@ -80,9 +80,7 @@ $$ D = \sigma(r^{d}W_{d \rightarrow s}(r^{s}_{t})^{T} )$$
 where $W_{d \rightarrow s}$ denotes a transformation matrix from document space to sentence space. The discriminator assigns the score 1 to endings $r^{s}_{t}$ that are the most likely given the document context $r_{d}$ and 0 to the least likely.
 
 Now, given a story without the ending (distilled to a single document representation using the sentence and document RNNs) and two endings (both distilled to sentence representations using the sentence RNN), we can determine the most likely ending as having the highest discriminator score $D$. 
-
 \section{Training}
-
 We train our model by generating fake endings using the generator and feeding them to the discriminator. The discriminator tries to discriminate real and fake endings, and the generator tries to trick the discriminator. The generator and discriminator are trained together, and we additionally pretrain the generator to improve performance.
 
 The discriminator loss is given by
@@ -105,11 +103,9 @@ $$ h^{g}_{0} = z $$
 $$ z \sim \mathcal{N}(0,1) $$
 and the pretraining generator loss is defined as
 $$ L_{G}^{pretrain} = similarity(s, \bar{s}) $$
-
 We use the AdaDelta optimizer with $p=0.999$ and $\epsilon=10^{-5}$. Learning rate is set to $10^{-3}$ and batch size to 32. For embedding, we use pretrained word2vec weights with embedding size 300 and do not update these during training. During data preprocessing, we add <BOS> and <EOS> tokens to the beginning and ending of sentences, pad sentences shorter than the max sentence length with <PAD> and replace words not in our vocabulary with <UNK>. We use a vocabulary size of 20000 and a max sentence length of 50. All trainable parameters are initialized using Xavier initialization. We use hidden state sizes of 128, 150 and 256 for the sentence, document and generator RNNs respectively.
-
 \section{Experiments}
-We were not able to reproduce the results of the original paper by Wang et al. The accuracy of our model on the validation dataset was significantly lower than what was reported in the paper and also significantly lower than the Deep Structured Semantic Model (DSSM), which is the best performing model in the SCT dataset paper. Our results are comparable to that of a random model that always determines the correct ending as the first one, which is disappointing.
+We were not able to reproduce the results of the original paper. The accuracy of our model on the SCT validation dataset was significantly lower than what was reported in the paper. It was also significantly lower than the Deep Structured Semantic Model (DSSM), which is the best performing model in the SCT dataset paper. Our results are only slightly better than a random model that always determines the correct ending as the first one, which is disappointing.
 \begin{center}
 \captionof{table}{Validation accuracy model comparison} 
 \begin{tabular}{ | c c c c |}
@@ -121,17 +117,14 @@ Random & DSSM & CGAN (Wang et al.) & CGAN (Ours) \\
 \par
 Comparison of accuracy on the SCT validation dataset for different models
 \end{center}
-
 It is unclear exactly why we were not able to reproduce the results. Training GANs is known to be challenging, and we would expect extending GANs to conditional text generation to exacerbate the issue. We observed that during training, the discriminator loss would eventually decrease significantly while the generator loss increased, which is a common issue in GAN training where the discriminator outcompetes the generator. The behaviour persisted despite adding noise to the discriminator inputs around the time when the discriminator loss started to drop.
-
 \begin{center}
 \captionof{figure}{Generator and discriminator loss} 
  \vspace{-4pt}
 \includegraphics[width=\textwidth]{graph}
 Plot of generator and discriminator loss during training. After around 20 training steps, the discriminator loss drops significantly and the generator loss no longer decreases.
 \end{center}
-We mostly used the same hyperparameters as the original paper, with exceptions of an embedding size of 300 instead of 100, clipping the number of discriminator and generator training batches at 40 instead of 20, and using Xavier initialization for trainable variables instead of fixing their largest singular values to 1.0. It was unclear what loss they used for pretraining the generator, but we decided that negative cosine similarity was a sensible candidate.  We observed a significant drop in the pretraining generator loss which seemed to converge to a minimum, so we assumed that this was not the issue.
-
+We mostly used the same hyperparameters as the original paper, with exceptions of an embedding size of 300 instead of 100, clipping the number of discriminator and generator training batches at 40 instead of 20, and using Xavier initialization for trainable variables instead of fixing their largest singular values to 1.0. It was unclear what loss they used for pretraining the generator, but we decided that the negative cosine similarity was a sensible candidate.  We observed a significant drop and apparent convergence to a minimum in the pretraining generator loss, so we assumed that pretraining was not the issue.
 \section{Conclusion}
 We implemented and trained the CGAN architecture described in the original paper. While we were unable to reproduce the results of the paper, it is likely that hyperparameters, training procedure or minor model differences were the issue. CGANs are very difficult to train, especially for text generation. The Story Cloze Task is an incredibly challenging dataset when a  neural machine comprehension approach is taken. Despite promising advances in deep learning and natural language understanding, machine comprehension remains an unsolved and immensely challenging problem.
 
