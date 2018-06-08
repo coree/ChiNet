@@ -260,6 +260,7 @@ class BaseModel(object):
         current_step = initial_step
 
         logger.info(' * Number of steps: {}'.format(num_steps))
+        start_time = time.time()
         for current_step in range(initial_step, num_steps):
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
@@ -268,7 +269,7 @@ class BaseModel(object):
             extra_sentence_length = np.expand_dims(sentence_lengths[:, -1], axis=1)
 
             feed_dict = {}
-            feed_dict[self.inputs['train']['extra_sentence']] = extra_sentence #only target sentence
+            feed_dict[self.inputs['train']['extra_sentence']] = extra_sentence  #only target sentence
             feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
             feed_dict[self.is_training] = True
             feed_dict[self.use_batch_statistics] = True
@@ -282,30 +283,22 @@ class BaseModel(object):
             # summary_clean(summary_ops, 'generator')
             # if len(summary_ops) > 0:
             #     fetches['summaries'] = summary_ops
-            initial_loss = None
-            if initial_loss:
-                sub_its = int(30*(updated_loss/initial_loss)**2)
-                sub_its = 30 if sub_its > 30 else sub_its
-            else:
-                sub_its = 30
 
-            for _ in range(sub_its):
-                self.time.start('pretrain_iteration', average_over_last_n_timings=100)
-                outcome = self._tensorflow_session.run(
-                    fetches=fetches,
-                    feed_dict=feed_dict
-                )
-                self.time.end('pretrain_iteration')
-                if not initial_loss:
-                    initial_loss = outcome['lss']
-                updated_loss = outcome['lss']
+            self.time.start('pretrain_iteration', average_over_last_n_timings=100)
+            outcome = self._tensorflow_session.run(
+                fetches=fetches,
+                feed_dict=feed_dict
+            )
+            self.time.end('pretrain_iteration')
 
-                # Print progress
-                to_print = '%07d> ' % current_step
-                to_print += 'Pretrain loss = {}'.format(outcome['lss'])
-                # to_print += ', '.join(['%s = %f' % (k, v)
-                #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
-                self.time.log_every('pretrain_iteration', to_print, seconds=2)
+            # Print progress
+            to_print = '%07d ' % current_step
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step+1)
+            to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
+            to_print += 'Pretrain loss = {}'.format(outcome['lss'])
+            # to_print += ', '.join(['%s = %f' % (k, v)
+            #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
+            self.time.log_every('pretrain_iteration', to_print, seconds=2)
 
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:
@@ -351,15 +344,16 @@ class BaseModel(object):
         current_step = initial_step
 
         #individual training steps for discriminator and generator
-        max_steps = 200
+        max_steps = 40
         min_steps = 1
         initial_steps = 1
         num_steps_discriminator = initial_steps
         num_steps_generator = initial_steps
 
-        discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many steps #TODO tweak
+        discriminator_iteration_threshold = 20 #we add noise to discriminator input after this many steps #TODO tweak
 
         logger.info(' * Number of steps: {}'.format(num_steps))
+        start_time = time.time()
         for current_step in range(initial_step, num_steps):
             self.time.start('train_iteration', average_over_last_n_timings=100)
             discriminator_losses = []
@@ -414,11 +408,10 @@ class BaseModel(object):
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
                 
-                for _ in range(10):
-                    outcome = self._tensorflow_session.run(
-                        fetches=fetches,
-                        feed_dict=feed_dict
-                    )
+                outcome = self._tensorflow_session.run(
+                    fetches=fetches,
+                    feed_dict=feed_dict
+                )
                 
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
@@ -438,7 +431,9 @@ class BaseModel(object):
             self.time.end('train_iteration')
 
             # Print progress
-            to_print = '%07d> ' % current_step
+            to_print = '%07d ' % current_step
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step+1)
+            to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
             to_print += 'Gen loss = {0:.4f} -- Discr loss = {1:.4f} || (Ratio {2:.4f}) Steps: G {3:03} - D {4:03}'.format(
                             generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator)
             self.time.log_every('train_iteration', to_print, seconds=0.5)
