@@ -260,6 +260,7 @@ class BaseModel(object):
         current_step = initial_step
 
         logger.info(' * Number of steps: {}'.format(num_steps))
+        start_time = time.time()
         for current_step in range(initial_step, num_steps):
 
             sentences, sentence_lengths = self._train_data['real'].get_batch()
@@ -289,11 +290,11 @@ class BaseModel(object):
                 feed_dict=feed_dict
             )
             self.time.end('pretrain_iteration')
-            if not initial_loss:
-                initial_loss = outcome['lss']
 
             # Print progress
-            to_print = '%07d> ' % current_step
+            to_print = '%07d ' % current_step
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step)
+            to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
             to_print += 'Pretrain loss = {}'.format(outcome['lss'])
             # to_print += ', '.join(['%s = %f' % (k, v)
             #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
@@ -349,9 +350,10 @@ class BaseModel(object):
         num_steps_discriminator = initial_steps
         num_steps_generator = initial_steps
 
-        discriminator_iteration_threshold = 50 #we add noise to discriminator input after this many steps #TODO tweak
+        discriminator_iteration_threshold = 20 #we add noise to discriminator input after this many steps #TODO tweak
 
         logger.info(' * Number of steps: {}'.format(num_steps))
+        start_time = time.time()
         for current_step in range(initial_step, num_steps):
             self.time.start('train_iteration', average_over_last_n_timings=100)
             discriminator_losses = []
@@ -429,7 +431,9 @@ class BaseModel(object):
             self.time.end('train_iteration')
 
             # Print progress
-            to_print = '%07d> ' % current_step
+            to_print = '%07d ' % current_step
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step)
+            to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
             to_print += 'Gen loss = {0:.4f} -- Discr loss = {1:.4f} || (Ratio {2:.4f}) Steps: G {3:03} - D {4:03}'.format(
                             generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator)
             self.time.log_every('train_iteration', to_print, seconds=0.5)
