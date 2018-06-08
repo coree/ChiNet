@@ -293,7 +293,7 @@ class BaseModel(object):
 
             # Print progress
             to_print = '%07d ' % current_step
-            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step)
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step+1)
             to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
             to_print += 'Pretrain loss = {}'.format(outcome['lss'])
             # to_print += ', '.join(['%s = %f' % (k, v)
@@ -432,7 +432,7 @@ class BaseModel(object):
 
             # Print progress
             to_print = '%07d ' % current_step
-            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step)
+            t = (num_steps-initial_step-current_step)*(time.time()-start_time)/(current_step-initial_step+1)
             to_print += '[TTC {0:02.0f}:{1:02.0f}] >'.format(t//60,  t%60)
             to_print += 'Gen loss = {0:.4f} -- Discr loss = {1:.4f} || (Ratio {2:.4f}) Steps: G {3:03} - D {4:03}'.format(
                             generator_loss, discriminator_loss, loss_ratio, num_steps_discriminator, num_steps_generator)
