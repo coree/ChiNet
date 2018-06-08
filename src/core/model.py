@@ -476,10 +476,6 @@ class BaseModel(object):
 
         # self.initialize_if_not()
 
-        if write_file:
-            assert data_source.submission==True
-        else:
-            assert data_source.testing == True
         data_source._generate_batches()
         results = []
         for data_points in range(data_source.num_batches):
