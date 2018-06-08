@@ -282,20 +282,20 @@ class BaseModel(object):
             # summary_clean(summary_ops, 'generator')
             # if len(summary_ops) > 0:
             #     fetches['summaries'] = summary_ops
+            for _ in range(30):
+                self.time.start('pretrain_iteration', average_over_last_n_timings=100)
+                outcome = self._tensorflow_session.run(
+                    fetches=fetches,
+                    feed_dict=feed_dict
+                )
+                self.time.end('pretrain_iteration')
 
-            self.time.start('pretrain_iteration', average_over_last_n_timings=100)
-            outcome = self._tensorflow_session.run(
-                fetches=fetches,
-                feed_dict=feed_dict
-            )
-            self.time.end('pretrain_iteration')
-
-            # Print progress
-            to_print = '%07d> ' % current_step
-            to_print += 'Pretrain loss = {}'.format(outcome['lss'])
-            # to_print += ', '.join(['%s = %f' % (k, v)
-            #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
-            self.time.log_every('pretrain_iteration', to_print, seconds=2)
+                # Print progress
+                to_print = '%07d> ' % current_step
+                to_print += 'Pretrain loss = {}'.format(outcome['lss'])
+                # to_print += ', '.join(['%s = %f' % (k, v)
+                #                        for k, v in zip(loss_term_keys, outcome['loss_terms'])])
+                self.time.log_every('pretrain_iteration', to_print, seconds=2)
 
             # Trigger copy weights & concurrent testing (if not already running)
             if self._enable_live_testing:

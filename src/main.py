@@ -85,9 +85,9 @@ if __name__ == '__main__':
         model.load_embeddings(path="../datasets/word2vec/GoogleNews-vectors-negative300.bin",
                               binary=True)
 
-        # model.pretrain(
-        #     num_epochs=0,
-        # )
+        model.pretrain(
+            num_epochs=2,
+        )
 
         model.train(
             num_epochs=10,
