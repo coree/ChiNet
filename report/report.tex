@@ -18,6 +18,7 @@
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 \usepackage{caption}
+\usepackage{graphicx}
 
 % \bibliographystyle{unsrtnat} % or try abbrvnat or unsrtnat
 \bibliographystyle{unsrtnat} % or try abbrvnat or unsrtnat
@@ -123,11 +124,16 @@ Comparison of accuracy on the SCT validation dataset for different models
 
 It is unclear exactly why we were not able to reproduce the results. Training GANs is known to be challenging, and we would expect extending GANs to conditional text generation to exacerbate the issue. We observed that during training, the discriminator loss would eventually decrease significantly while the generator loss increased, which is a common issue in GAN training where the discriminator outcompetes the generator. The behaviour persisted despite adding noise to the discriminator inputs around the time when the discriminator loss started to drop.
 
-[loss image] 
-
+\begin{center}
+\captionof{figure}{Generator and discriminator loss} 
+ \vspace{-4pt}
+\includegraphics[width=\textwidth]{graph}
+Plot of generator and discriminator loss during training. After around 20 training steps, the discriminator loss drops significantly and the generator loss no longer decreases.
+\end{center}
 We mostly used the same hyperparameters as the original paper, with exceptions of an embedding size of 300 instead of 100, clipping the number of discriminator and generator training batches at 40 instead of 20, and using Xavier initialization for trainable variables instead of fixing their largest singular values to 1.0. It was unclear what loss they used for pretraining the generator, but we decided that negative cosine similarity was a sensible candidate.  We observed a significant drop in the pretraining generator loss which seemed to converge to a minimum, so we assumed that this was not the issue.
 
 \section{Conclusion}
+We implemented and trained the CGAN architecture described in the original paper. While we were unable to reproduce the results of the paper, it is likely that hyperparameters, training procedure or minor model differences were the issue. CGANs are very difficult to train, especially for text generation. The Story Cloze Task is an incredibly challenging dataset when a  neural machine comprehension approach is taken. Despite promising advances in deep learning and natural language understanding, machine comprehension remains an unsolved and immensely challenging problem.
 
 \bibliography{report}
 
