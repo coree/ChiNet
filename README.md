@@ -31,7 +31,7 @@ nltk.download('names')
 ```
 #### Code Files Setup
 
-1. The unzipped folder 'ChiNet' contains src folder where the code main.py is
+1. The unzipped folder 'ChiNet' contains src folder where the code main_test.py is
 
 #### Data Files Setup
 
@@ -39,16 +39,16 @@ All data files are available in a zipped folder on polybox:
 
 1. Download the zipped folder 'datasets' [https://polybox.ethz.ch/index.php/s/i2az9ljuZt3eGx5] and unzip it.
 This folder contains:
-* The vocab folder created after preprossing.
-* The word2vec embedding folder
+* The vocab folder created after preprocessing
+* The word2vec embeddings folder
 * The training, validation and test sets
-2. Download the zipped folder 'outputs' [https://polybox.ethz.ch/index.php/s/3FOMzOGPZdoAU9k] and unzip it
+2. Download the zipped folder 'outputs' [https://polybox.ethz.ch/index.php/s/3FOMzOGPZdoAU9k] and unzip it.
 This folder contains model weights after training.
 3. Move both unzipped folders to the folder 'ChiNet' 
 
 #### Running the Code
 
-Run test_main.py available in ChiNet\src
+Run main_test.py available in ChiNet\src .
 
 
 
