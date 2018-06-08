@@ -282,6 +282,9 @@ class BaseModel(object):
             # summary_clean(summary_ops, 'generator')
             # if len(summary_ops) > 0:
             #     fetches['summaries'] = summary_ops
+            initial_loss = None
+            if initial_loss:
+                sub_its = int(30*(updated_loss/initial_loss))
             for _ in range(30):
                 self.time.start('pretrain_iteration', average_over_last_n_timings=100)
                 outcome = self._tensorflow_session.run(
@@ -289,6 +292,9 @@ class BaseModel(object):
                     feed_dict=feed_dict
                 )
                 self.time.end('pretrain_iteration')
+                if not initial_loss:
+                    initial_loss = outcome['lss']
+                updated_loss = outcome['lss']
 
                 # Print progress
                 to_print = '%07d> ' % current_step

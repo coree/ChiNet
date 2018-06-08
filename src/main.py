@@ -86,7 +86,7 @@ if __name__ == '__main__':
                               binary=True)
 
         model.pretrain(
-            num_epochs=2,
+            num_epochs=1,
         )
 
         model.train(
