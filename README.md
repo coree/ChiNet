@@ -23,6 +23,12 @@ On macOS and Linux, in your Terminal Window, run:
 ```
 source activate myenv
 ```
+4. Open a python shell and write the following commands:
+```
+import nltk
+nltk.download('punkt')
+nltk.download('names')
+```
 #### Code Files Setup
 
 1. Download the zipped folder 'ChiNet' - one of the 3 submitted files - and unzip it
