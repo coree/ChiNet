@@ -506,5 +506,5 @@ class BaseModel(object):
 
     def validation_accuracy(self):
         predictions = self.evaluate(self.validate_source)
-        target = load_results()
+        target = load_results(file_path='../datasets/cloze_val.csv')
         return 1 - np.mean(np.abs(np.array(target) - np.array(predictions)))

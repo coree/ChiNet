@@ -143,9 +143,10 @@ def preprocess_results(file_path='../datasets/cloze_val.csv',
         pickle.dump(data, f)
 
 
-def load_results(clean_file='../datasets/results.clean', overwrite=False):
+def load_results(file_path='../datasets/cloze_val.csv',
+                    clean_file='../datasets/results.clean', overwrite=False):
     if not os.path.exists(clean_file) or overwrite:
-        preprocess_results(clean_file=clean_file)
+        preprocess_results(file_path=file_path, clean_file=clean_file)
         logger.info('Results file preprocessed')
     with open(clean_file, 'rb') as f:
         data = pickle.load(f)

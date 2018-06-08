@@ -111,7 +111,7 @@ if __name__ == '__main__':
         )
 
         model.initialize_if_not()
-        target = load_results(overwrite=True)
+        target = load_results(file_path='../datasets/cloze_test.csv', overwrite=True)
         print(target)
         print(predictions)
         print('Final nlu-test-data predictions: ',submission_predictions)
