@@ -31,7 +31,7 @@ nltk.download('names')
 ```
 #### Code Files Setup
 
-1. Download the zipped folder 'ChiNet' - one of the 3 submitted files - and unzip it
+1. The unzipped folder 'ChiNet' contains src folder where the code main.py is
 
 #### Data Files Setup
 
