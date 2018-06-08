@@ -30,7 +30,6 @@ def score(document_state, target_sentence_state):
     
     return tf.squeeze(score_sigmoid) #squeeze removes 1x1 dimension at end
 
-#TODO matrix operation version of Gumbel softmax could be breaking everything
 def gumbel_softmax(generator_state, config):
     with tf.variable_scope("generator", reuse=True):
         generator_to_embedding_weights = tf.get_variable("generator_to_embedding_weights")
@@ -133,7 +132,7 @@ class CGAN(BaseModel):
     def build_model(self, data_sources, mode: str, batch = None):
         logger.info('Start building model {}'.format(__name__))
 
-        #PARAMETERS TODO config from higher level
+        #PARAMETERS 
         config = dict()
         config['sentence_hidden_size'] = 128
         config['document_hidden_size'] = 150
@@ -169,7 +168,6 @@ class CGAN(BaseModel):
         with tf.variable_scope('sentence'):
             sentence_rnn_cell = tf.nn.rnn_cell.GRUCell(num_units=config['sentence_hidden_size'], activation=config['rnn_activation'], name="sentence_cell")
         
-        #TODO attention matrix unnecessary since applied to sentences in same space?
         with tf.variable_scope("attention"):
             attention_matrix = tf.get_variable(name="attention_matrix", shape=[config['sentence_hidden_size'], config['sentence_hidden_size']], dtype=tf.float32)
             #commented out attention matrix below should provide easy way of doing attention without attention matrix (untested)
@@ -240,7 +238,7 @@ class CGAN(BaseModel):
             _, document_state = tf.nn.dynamic_rnn(document_rnn_cell, input_states, initial_state=initial_state, dtype=tf.float32, scope="document")
 
             generated_sentence, generated_sentence_length = generate_sentence(document_state=document_state, conditional=True, generator_rnn_cell=generator_rnn_cell, embedded_start_word=embedded_start_word, config=config)
-            #after some iterations, add noise to discriminator input #TODO control noise magnitude with parameter?
+            #after some iterations, add noise to discriminator input
             generated_sentence = tf.cond(iteration_threshold_reached, lambda: generated_sentence + tf.random_normal(shape=[config['batch_size'], config['max_sentence_length'], config['embedding_size']], stddev=config['discriminator_noise_std']), lambda: generated_sentence)
 
             initial_state = sentence_rnn_cell.zero_state(config['batch_size'], dtype=tf.float32)
@@ -282,7 +280,6 @@ class CGAN(BaseModel):
 
         logger.info('Model {} building exiting.'.format(__name__))
 
-        #TODO (low priority) embedding_assign_op technically not an output...
         return ({"predicted_ending": predicted_ending, "embedding_assign_op": embedding_assign_op},          #output
                 {"pretrain_loss": pretrain_generator_loss, "generator_loss": generator_loss, "discriminator_loss": discriminator_loss},   #loss
                 {},  #metrics

@@ -117,7 +117,7 @@ class BaseModel(object):
                 batch = {'batch_size': self._batch_size, 'vocab_size': len(a_vocab_dict)}
             # Build model
             raw_outputs, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode, batch=batch)
-            output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all
+            output_tensors = raw_outputs['predicted_ending']
 
             # Record important tensors
             # self.output_tensors[mode] = output_tensors
@@ -165,7 +165,6 @@ class BaseModel(object):
         self.checkpoint.build_savers()  # Create savers
         if training:
             self._build_optimizers()
-            # TODO Maybe put the batcher shuffle here
 
         # Initialize all variables
         self._tensorflow_session.run(tf.global_variables_initializer())
@@ -208,12 +207,12 @@ class BaseModel(object):
                     name='optimize_%s' % loss_term_key,
                 )
                 optimize_ops[loss_term_key] = optimize_op
-            self._optimize_ops = optimize_ops  # TODO Changed to single _learning_schedule... need to clean code
+            self._optimize_ops = optimize_ops
             logger.info('Built optimizer for: %s' % ', '.join(loss_terms.keys()))
 
 
     # Load embeddings from file and call embedding matrix assign op
-    def load_embeddings(self, path, vocab_size=20000, binary=True):  #TODO get vocab_size and embedding_size params from elsewhere?
+    def load_embeddings(self, path, vocab_size=20000, binary=True):  
 
         logger.info("Loading external embeddings from {}".format(path))
 
@@ -257,10 +256,10 @@ class BaseModel(object):
         #Pretrain generator (repeat n_epochs)
         #generate sentence from random noise
         #sample target sentence
-        #optimize generator loss using distance between target sentence and generated sentence (TODO what distance metric?)
+        #optimize generator loss using distance between target sentence and generated sentence
 
         if num_steps is None:
-            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
+            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  
             num_steps = int(num_epochs * num_batches)
         self.initialize_if_not(training=True)
 
@@ -344,7 +343,7 @@ class BaseModel(object):
         #[GAN HACK update n_step_d and n_step_g using discriminator and generator losses]
 
         if num_steps is None:
-            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  # TODO : make it cleaner
+            num_batches = [s.num_batches for s in list(self._train_data.values())][0]  
             num_steps = int(num_epochs * num_batches)
         self.initialize_if_not(training=True)
 
@@ -358,7 +357,7 @@ class BaseModel(object):
         num_steps_discriminator = initial_steps
         num_steps_generator = initial_steps
 
-        discriminator_iteration_threshold = 20 #we add noise to discriminator input after this many steps #TODO tweak
+        discriminator_iteration_threshold = 20 #we add noise to discriminator input after this many steps 
 
         logger.info(' * Number of steps: {}'.format(num_steps))
         start_time = time.time()
@@ -371,7 +370,6 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops['discriminator_loss']
                 fetches['losses'] = self.loss_terms['train']['discriminator_loss']
 
-                #TODO fix summaries
                 summary_ops = self.summary.get_ops(mode='train')
                 summary_clean(summary_ops, 'discriminator')
 
@@ -403,7 +401,6 @@ class BaseModel(object):
                 fetches['optimize_ops'] = self._optimize_ops['generator_loss']
                 fetches['losses'] = self.loss_terms['train']['generator_loss']
 
-                #TODO fix summaries
                 summary_ops = self.summary.get_ops(mode='train')
                 summary_clean(summary_ops, 'generator')
                 if len(summary_ops) > 0:
@@ -496,11 +493,7 @@ class BaseModel(object):
             feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
             feed_dict[self.inputs['train']['extra_sentence_length']] = extra_sentence_length
             outcome = self._tensorflow_session.run(
-                [self.predicted_ending['train']],  # TODO @NIL I'm debugging this thing
-                                                                     # I'm also gonna clean some stuff on cgan
-                                                                     # If y'all can get checking if you are able to train
-                                                                     # and the loss makes sense, that'd be great
-
+                [self.predicted_ending['train']],
                 feed_dict = feed_dict
             )
             results.append(outcome)
