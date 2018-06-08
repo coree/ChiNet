@@ -130,7 +130,7 @@ def apply_embedding_and_sentence_rnn(sentences, sentence_lengths, sentence_rnn_c
     return sentence_states
 
 class CGAN(BaseModel):
-    def build_model(self, data_sources: Dict[str, TextSource], mode: str):
+    def build_model(self, data_sources, mode: str, batch = None):
         logger.info('Start building model {}'.format(__name__))
 
         #PARAMETERS TODO config from higher level
@@ -141,8 +141,8 @@ class CGAN(BaseModel):
         config['embedding_size'] = 300
         config['max_sentence_length'] = 50
         config['input_sentence_n'] = 4
-        config['vocab_size'] = data_sources['real'].vocab_size 
-        config['batch_size'] = data_sources['real'].batch_size
+        config['vocab_size'] = data_sources['real'].vocab_size if data_sources else batch['batch_size']
+        config['batch_size'] = data_sources['real'].batch_size if data_sources else batch['vocab_size']
         config['initializer'] = tf.contrib.layers.xavier_initializer()
         config['rnn_activation'] = tf.nn.tanh 
         config['start_word_index'] = 0

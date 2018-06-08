@@ -32,12 +32,13 @@ class BaseModel(object):
     def __init__(self,
                  tensorflow_session: tf.Session,
                  learning_schedule: List[Dict[str, Any]],
-                 train_data: Dict[str, TextSource],
+                 batch_size = 32,
+                 train_data = None,  # Dict[str, TextSource],
                  test_data: Dict[str, TextSource] = {},
                  validation_data_source = None,
                  test_losses_or_metrics: str = None):
         """Initialize model with data sources and parameters."""
-        assert len(train_data) > 0
+        
         self._tensorflow_session = tensorflow_session
         self._train_data = train_data
         self._test_data = test_data
@@ -50,16 +51,20 @@ class BaseModel(object):
         self._known_prefixes = [schedule for schedule in learning_schedule]
 
         # Check consistency of given data sources
-        train_data_sources = list(train_data.values())
-        logger.debug('Data sources: {}'.format(train_data_sources))
-        test_data_sources = list(test_data.values())
-        self._batch_size = train_data_sources.pop().batch_size
-        for data_source in train_data_sources + test_data_sources:
-            if data_source.batch_size != self._batch_size:
-                raise ValueError(('Data source "%s" has anomalous batch size of %d ' +
-                                  'when detected batch size is %d.') % (data_source.short_name,
-                                                                        data_source.batch_size,
-                                                                        self._batch_size))
+        if train_data:
+            assert len(train_data) > 0
+            train_data_sources = list(train_data.values())
+            logger.debug('Data sources: {}'.format(train_data_sources))
+            test_data_sources = list(test_data.values())
+            self._batch_size = train_data_sources.pop().batch_size
+            for data_source in train_data_sources + test_data_sources:
+                if data_source.batch_size != self._batch_size:
+                    raise ValueError(('Data source "%s" has anomalous batch size of %d ' +
+                                    'when detected batch size is %d.') % (data_source.short_name,
+                                                                            data_source.batch_size,
+                                                                            self._batch_size))
+        else:
+            self._batch_size = batch_size
 
         # Register a manager for tf.Summary
         self.summary = SummaryManager(self)
@@ -106,9 +111,12 @@ class BaseModel(object):
 
         def _build_train_or_test(mode):
             data_sources = self._train_data if mode == 'train' else self._test_data
-
+            batch = None
+            if not data_sources:
+                a_vocab_dict, _ = load_vocab()
+                batch = {'batch_size': self._batch_size, 'vocab_size': len(a_vocab_dict)}
             # Build model
-            raw_outputs, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode)
+            raw_outputs, loss_terms, metrics, inputs = self.build_model(data_sources, mode=mode, batch=batch)
             output_tensors = raw_outputs['predicted_ending']  # TODO Cahnge to all
 
             # Record important tensors
@@ -144,7 +152,7 @@ class BaseModel(object):
             self._tester._post_model_build()  # Create copy ops to be run before every test run
         self.summary._post_model_build()  # Merge registered summary operations
 
-    def build_model(self, data_sources: Dict[str, TextSource], mode: str):
+    def build_model(self, data_sources, mode: str, batch = None):
         """Build model."""
         raise NotImplementedError('BaseModel::build_model is not yet implemented.')
 
