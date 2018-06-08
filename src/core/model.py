@@ -286,7 +286,10 @@ class BaseModel(object):
             if initial_loss:
                 sub_its = int(30*(updated_loss/initial_loss)**2)
                 sub_its = 30 if sub_its > 30 else sub_its
-            for _ in range(30):
+            else:
+                sub_its = 30
+
+            for _ in range(sub_its):
                 self.time.start('pretrain_iteration', average_over_last_n_timings=100)
                 outcome = self._tensorflow_session.run(
                     fetches=fetches,
@@ -410,11 +413,12 @@ class BaseModel(object):
                 feed_dict[self.inputs['train']['sentence_lengths']] = sentence_lengths
                 feed_dict[self.is_training] = True
                 feed_dict[self.use_batch_statistics] = True
-
-                outcome = self._tensorflow_session.run(
-                    fetches=fetches,
-                    feed_dict=feed_dict
-                )
+                
+                for _ in range(10):
+                    outcome = self._tensorflow_session.run(
+                        fetches=fetches,
+                        feed_dict=feed_dict
+                    )
                 
                 generator_losses += [outcome['losses']]
             generator_loss = np.mean(generator_losses)
