@@ -101,10 +101,20 @@ if __name__ == '__main__':
                 )
         )
 
+        submission_predictions = model.evaluate(
+            TextSource(
+                batch_size,
+                file_path='../datasets/test_nlu18_utf-8.csv',  # Submission test set
+                submission=True,
+            ),
+            write_file=True
+        )
+
         model.initialize_if_not()
         target = load_results(overwrite=True)
         print(target)
         print(predictions)
+        print('Final nlu-test-data predictions: ',submission_predictions)
         accuracy = 1 - np.mean(np.abs(np.array(target) - np.array(predictions)))
         logger.critical('***************************\n \
                         ***\n                    ***  \

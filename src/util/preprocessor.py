@@ -112,19 +112,23 @@ def dehumanify(story):
     return sentences
 
 def preprocess_file(file_path='../datasets/train_stories.csv',
-                         clean_file='../datasets/train_stories.clean', testing=False):
+                         clean_file='../datasets/train_stories.clean', testing=False, submission=False):
     """ Preprocess the csv into a pickled python list"""
     with open(file_path, 'r', encoding='utf-8') as f:
-        data = list(csv.DictReader(f))
-    # Just grab sentences from 1 to 5 and save them in a new file
-    if testing:
-        keys = ['InputSentence{}'.format(i+1) for i in range(4)] + ['RandomFifthSentenceQuiz{}'.format(i+1) for i in range(2)]
-        data = [[s[k] for k in keys]  for s in data]
-    else:
-        data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data]
+        # Just grab sentences from 1 to 5 and save them in a new file
+        if testing:
+            data = list(csv.DictReader(f))
+            keys = ['InputSentence{}'.format(i+1) for i in range(4)] + ['RandomFifthSentenceQuiz{}'.format(i+1) for i in range(2)]
+            data = [[s[k] for k in keys]  for s in data]
+        elif submission:
+            data = list(csv.DictReader(f, fieldnames=['s1','s2','s3','s4','s5','s6']))
+            data = [[s[k] for k in ['s{}'.format(i + 1) for i in range(6)]] for s in data]
+        else:
+            data = list(csv.DictReader(f))
+            data = [[s[k] for k in ['sentence{}'.format(i+1) for i in range(5)]]  for s in data]
 
-    with open(clean_file, 'wb') as f:
-        pickle.dump(data, f)
+        with open(clean_file, 'wb') as f:
+            pickle.dump(data, f)
 
 
 def preprocess_results(file_path='../datasets/cloze_test_val.csv',

@@ -18,13 +18,15 @@ class TextSource(object):
                  batch_size: int,
                  file_path: int ='../datasets/train_stories.csv',
                  testing=False,
+                 submission=False,
                  override_file=False,
                  vocab_size=20000):
         """Initializes data source and loads sentences from disk"""
         self._sentences_file = ''.join(os.path.splitext(file_path)[0]) + '.clean'
         self._data_file = ''.join(os.path.splitext(file_path)[0]) + '.processed'
         self.testing = testing
-        self.preprocessed_vocab = True if testing else False
+        self.submission = submission
+        self.preprocessed_vocab = True if testing or submission else False
         self.vocab_size = vocab_size
 
         # If preprocessed file doesn't exit we create it
@@ -69,7 +71,7 @@ class TextSource(object):
 
     def _generate_batches(self):
         logger.debug('Generating new data batches')
-        if self.testing:
+        if self.testing or self.submission:
             shuffled_data = self._data[:]
             self._batched_data = []
             for i in range(self.len_data//self.batch_size):
@@ -96,7 +98,7 @@ class TextSource(object):
     def preprocess(self, file_path, clean_file):
         """ Whole preprocess pipeline data"""
         # Preprocess file
-        coree.preprocess_file(file_path, clean_file, self.testing)
+        coree.preprocess_file(file_path, clean_file, self.testing, self.submission)
         logger.info('Clean file {} created'.format(clean_file))
         logger.info('Started preprocessing data...')
         # Preprocess data

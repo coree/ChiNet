@@ -462,7 +462,7 @@ class BaseModel(object):
         # Save final weights
         self.checkpoint.save_all(current_step)
 
-    def evaluate(self, data_source):
+    def evaluate(self, data_source,write_file=False):
         #Pseudocode
 
         #Predict correct story endings (repeat for every test data entry)
@@ -503,7 +503,8 @@ class BaseModel(object):
             )
             results.append(outcome)
         results = np.array(results).flatten()[:data_source.len_data]
-        write_submission(results)
+        if write_file:
+            write_submission(results)
 
         return results
 
